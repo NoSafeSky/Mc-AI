@@ -1,0 +1,47 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Users\Nikita\AppData\Roaming\npm\node_modules\npm\bin\npm-cli.js
+1 info using npm@11.7.0
+2 info using node@v24.12.0
+3 silly config load:file:C:\Users\Nikita\AppData\Roaming\npm\node_modules\npm\npmrc
+4 silly config load:file:C:\Users\Nikita\OneDrive\Документи\mc-ai-bot\.npmrc
+5 silly config load:file:C:\Users\Nikita\.npmrc
+6 silly config load:file:C:\Users\Nikita\AppData\Roaming\npm\etc\npmrc
+7 verbose title npm i github:prismarinejs/mineflayer#master github:prismarinejs/prismarine-entity#master github:prismarinejs/minecraft-data#master
+8 verbose argv "--cache" ".npm-cache" "i" "github:prismarinejs/mineflayer#master" "github:prismarinejs/prismarine-entity#master" "github:prismarinejs/minecraft-data#master"
+9 verbose logfile logs-max:10 dir:C:\Users\Nikita\OneDrive\Документи\mc-ai-bot\.npm-cache\_logs\2026-02-01T16_46_20_710Z-
+10 verbose logfile C:\Users\Nikita\OneDrive\Документи\mc-ai-bot\.npm-cache\_logs\2026-02-01T16_46_20_710Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
+13 http fetch GET 200 https://registry.npmjs.org/npm 196ms
+14 verbose stack Error: Could not read package.json: Error: ENOENT: no such file or directory, open 'C:\Users\Nikita\OneDrive\Документи\mc-ai-bot\.npm-cache\_cacache\tmp\git-clone5C5QzP\package.json'
+14 verbose stack     at async open (node:internal/fs/promises:642:25)
+14 verbose stack     at async readFile (node:internal/fs/promises:1279:14)
+14 verbose stack     at async read (C:\Users\Nikita\AppData\Roaming\npm\node_modules\npm\node_modules\@npmcli\package-json\lib\read-package.js:9:18)
+14 verbose stack     at async PackageJson.load (C:\Users\Nikita\AppData\Roaming\npm\node_modules\npm\node_modules\@npmcli\package-json\lib\index.js:131:31)
+14 verbose stack     at async PackageJson.normalize (C:\Users\Nikita\AppData\Roaming\npm\node_modules\npm\node_modules\@npmcli\package-json\lib\index.js:117:5)
+14 verbose stack     at async withTempDir (C:\Users\Nikita\AppData\Roaming\npm\node_modules\npm\node_modules\@npmcli\fs\lib\with-temp-dir.js:21:14)
+14 verbose stack     at async C:\Users\Nikita\AppData\Roaming\npm\node_modules\npm\node_modules\@npmcli\arborist\lib\arborist\build-ideal-tree.js:527:22
+14 verbose stack     at async Promise.all (index 2)
+14 verbose stack     at async #add (C:\Users\Nikita\AppData\Roaming\npm\node_modules\npm\node_modules\@npmcli\arborist\lib\arborist\build-ideal-tree.js:516:5)
+14 verbose stack     at async #applyUserRequestsToNode (C:\Users\Nikita\AppData\Roaming\npm\node_modules\npm\node_modules\@npmcli\arborist\lib\arborist\build-ideal-tree.js:485:7)
+15 error code ENOENT
+16 error syscall open
+17 error path C:\Users\Nikita\OneDrive\Документи\mc-ai-bot\.npm-cache\_cacache\tmp\git-clone5C5QzP\package.json
+18 error errno -4058
+19 error enoent Could not read package.json: Error: ENOENT: no such file or directory, open 'C:\Users\Nikita\OneDrive\Документи\mc-ai-bot\.npm-cache\_cacache\tmp\git-clone5C5QzP\package.json'
+20 error enoent This is related to npm not being able to find a file.
+20 error enoent
+21 silly unfinished npm timer reify 1769964381055
+22 silly unfinished npm timer reify:loadTrees 1769964381056
+23 silly unfinished npm timer idealTree:userRequests 1769964381079
+24 verbose cwd C:\Users\Nikita\OneDrive\Документи\mc-ai-bot
+25 verbose os Windows_NT 10.0.26200
+26 verbose node v24.12.0
+27 verbose npm  v11.7.0
+28 notice
+28 notice New [33mminor[39m version of npm available! [33m11.7.0[39m -> [34m11.8.0[39m
+28 notice Changelog: [34mhttps://github.com/npm/cli/releases/tag/v11.8.0[39m
+28 notice To update run: [4mnpm install -g npm@11.8.0[24m
+28 notice  { force: true, Symbol(proc-log.meta): true }
+29 verbose exit -4058
+30 verbose code -4058
+31 error A complete log of this run can be found in: C:\Users\Nikita\OneDrive\Документи\mc-ai-bot\.npm-cache\_logs\2026-02-01T16_46_20_710Z-debug-0.log

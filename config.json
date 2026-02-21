@@ -1,0 +1,22 @@
+{
+  "host": "127.0.0.1",
+  "port": 54765,
+  "version": "1.21.1",
+  "username": "12__12",
+  "owner": "NoSafeSky",
+  "creepy": true,
+  "llmProvider": "groq",
+  "llmModel": "llama-3.3-70b-versatile",
+  "llmTimeoutMs": 3000,
+  "chatEnabled": true,
+  "chatCooldownMs": 10000,
+  "chatMaxTokens": 80,
+  "chatMemorySize": 6,
+  "maxExploreRadius": 500,
+  "commandPrefix": "bot",
+  "epsilon": 0.12,
+  "goalAutonomy": false,
+  "attackRange": 32,
+  "attackTimeoutSec": 60,
+  "viewDistance": 10
+}
