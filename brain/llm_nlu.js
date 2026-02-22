@@ -1,4 +1,5 @@
 const fetch = require("node-fetch");
+const { buildOllamaGenerateBody, extractOllamaText } = require("./llm_ollama");
 
 const ALLOWED_TYPES = new Set([
   "follow",
@@ -9,36 +10,112 @@ const ALLOWED_TYPES = new Set([
   "setCreepy",
   "stalk",
   "harvest",
+  "craftBasic",
+  "craftItem",
+  "explore",
+  "attackMob",
+  "attackHostile",
+  "huntFood",
   "freeform",
   "none"
 ]);
 
+function noneIntent(reason = "none", extra = {}) {
+  return {
+    type: "none",
+    source: "llm",
+    confidence: 0,
+    reason,
+    ...extra
+  };
+}
+
 function validateIntent(obj, owner) {
-  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return { type: "none" };
-  if (!ALLOWED_TYPES.has(obj.type)) return { type: "none" };
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return noneIntent("invalid_shape");
+  if (!ALLOWED_TYPES.has(obj.type)) return noneIntent("unknown_type");
+  if (typeof obj.confidence !== "number" || Number.isNaN(obj.confidence)) return noneIntent("missing_confidence");
+
+  const confidence = Math.max(0, Math.min(1, obj.confidence));
 
   switch (obj.type) {
     case "follow":
     case "come":
     case "stalk": {
       const target = typeof obj.target === "string" && obj.target.trim() ? obj.target.trim() : owner;
-      return { type: obj.type, target };
+      return { type: obj.type, target, source: "llm", confidence };
     }
     case "setCreepy": {
-      if (typeof obj.value !== "boolean") return { type: "none" };
-      return { type: "setCreepy", value: obj.value };
+      if (typeof obj.value !== "boolean") return noneIntent("invalid_setcreepy");
+      return { type: "setCreepy", value: obj.value, source: "llm", confidence };
     }
+    case "attackMob": {
+      const mobType = typeof obj.mobType === "string" ? obj.mobType.toLowerCase().trim() : "";
+      if (!mobType) return noneIntent("missing_mob");
+      return { type: "attackMob", mobType, source: "llm", confidence };
+    }
+    case "craftItem": {
+      const item = typeof obj.item === "string" ? obj.item.toLowerCase().trim() : "";
+      const count = Number.isFinite(obj.count) ? Math.max(1, Math.min(64, Number(obj.count))) : 1;
+      if (!item) return noneIntent("missing_craft_item");
+      return { type: "craftItem", item, count, source: "llm", confidence };
+    }
+    case "explore": {
+      const radius = Number.isFinite(obj.radius) ? Math.max(32, Math.min(500, Number(obj.radius))) : 200;
+      const seconds = Number.isFinite(obj.seconds) ? Math.max(5, Math.min(300, Number(obj.seconds))) : 60;
+      return { type: "explore", radius, seconds, source: "llm", confidence };
+    }
+    case "craftBasic":
+    case "attackHostile":
+    case "huntFood":
+    case "harvest":
     case "stop":
     case "stopall":
-    case "resume":
-    case "freeform":
+    case "resume": {
+      return { type: obj.type, source: "llm", confidence };
+    }
+    case "freeform": {
+      if (typeof obj.message === "string" && obj.message.trim()) {
+        return { type: "freeform", message: obj.message.trim(), source: "llm", confidence };
+      }
+      return noneIntent("invalid_freeform");
+    }
     case "none":
     default:
-      if (obj.type === "freeform" && typeof obj.message === "string") {
-        return { type: "freeform", message: obj.message };
-      }
-      return { type: obj.type };
+      return { type: "none", source: "llm", confidence };
   }
+}
+
+function parseIntentText(text, owner) {
+  try {
+    const parsed = JSON.parse(String(text || "").trim());
+    return validateIntent(parsed, owner);
+  } catch {
+    return noneIntent("invalid_json");
+  }
+}
+
+function parseOllamaIntentPayload(data, owner) {
+  const extracted = extractOllamaText(data);
+  if (!extracted.ok) {
+    return noneIntent(extracted.code, {
+      unavailable: true,
+      provider: "ollama",
+      hasThinking: extracted.hasThinking
+    });
+  }
+  return parseIntentText(extracted.text, owner);
+}
+
+function classifyLlmError(provider, error) {
+  if (error?.name === "AbortError") return "llm_timeout";
+  const text = String(error || "");
+  if (
+    provider === "ollama" &&
+    /(ECONNREFUSED|ECONNRESET|ENOTFOUND|EHOSTUNREACH|ETIMEDOUT|EAI_AGAIN)/i.test(text)
+  ) {
+    return "llm_provider_unreachable";
+  }
+  return "llm_error";
 }
 
 async function llmParseIntent(message, cfg, state) {
@@ -48,25 +125,35 @@ async function llmParseIntent(message, cfg, state) {
   const system = `You are an intent classifier. Return ONLY a single JSON object. No markdown, no prose.
 
 Allowed intents (choose one):
-{"type":"follow","target":"<player>"}
-{"type":"come","target":"<player>"}
-{"type":"stop"}
-{"type":"stopall"}
-{"type":"resume"}
-{"type":"setCreepy","value":true|false}
-{"type":"stalk","target":"<player>"}
-{"type":"harvest"}
-{"type":"freeform","message":"<request>"}
-{"type":"none"}
+{"type":"follow","target":"<player>","confidence":0.0-1.0}
+{"type":"come","target":"<player>","confidence":0.0-1.0}
+{"type":"stop","confidence":0.0-1.0}
+{"type":"stopall","confidence":0.0-1.0}
+{"type":"resume","confidence":0.0-1.0}
+{"type":"setCreepy","value":true|false,"confidence":0.0-1.0}
+{"type":"stalk","target":"<player>","confidence":0.0-1.0}
+{"type":"harvest","confidence":0.0-1.0}
+{"type":"craftBasic","confidence":0.0-1.0}
+{"type":"craftItem","item":"wooden_sword","count":1,"confidence":0.0-1.0}
+{"type":"explore","radius":200,"seconds":60,"confidence":0.0-1.0}
+{"type":"attackMob","mobType":"pig","confidence":0.0-1.0}
+{"type":"attackHostile","confidence":0.0-1.0}
+{"type":"huntFood","confidence":0.0-1.0}
+{"type":"freeform","message":"<request>","confidence":0.0-1.0}
+{"type":"none","confidence":0.0-1.0}
 
 Rules:
+- Classify ONLY actionable game commands. Casual chat should be {"type":"none","confidence":0.05}.
 - Only use follow/come if the message explicitly says "follow me" or "come to me".
 - Default target is cfg.owner if not provided.
 - "stop all" / "stop everything" / "!stopall" => stopall.
 - "resume" => resume.
 - Mentions of creepy/stalk => setCreepy true or stalk depending on wording.
-- For requests like "seek a village", "go explore", "craft", "kill mobs" => use freeform.
-- If unrelated => none.
+- Use attackMob for explicit mob targets like "kill a pig".
+- Use attackHostile for "kill hostile mobs".
+- Use huntFood for food hunting requests.
+- For requests like "seek a village", "go explore", "craft tools" choose supported direct intent if possible, else freeform.
+- For explicit item craft requests like "craft me a wooden sword", use craftItem with count.
 - Output must be valid JSON only, no trailing text.`;
 
   const prompt = `cfg.owner="${cfg.owner}"
@@ -80,7 +167,7 @@ JSON:`;
   try {
     if (provider === "groq") {
       const apiKey = process.env.GROQ_API_KEY;
-      if (!apiKey) return { type: "none" };
+      if (!apiKey) return noneIntent("llm_unavailable", { unavailable: true, provider });
       const url = "https://api.groq.com/openai/v1/chat/completions";
       const body = {
         model,
@@ -99,20 +186,17 @@ JSON:`;
         body: JSON.stringify(body),
         signal: controller.signal
       });
-      if (!res.ok) throw new Error(`Groq HTTP ${res.status}`);
+      if (!res.ok) {
+        return noneIntent("llm_http_error", { unavailable: true, provider, status: res.status });
+      }
       const data = await res.json();
       const text = data?.choices?.[0]?.message?.content?.trim() || "";
-      try {
-        const parsed = JSON.parse(text);
-        return validateIntent(parsed, cfg.owner);
-      } catch {
-        return { type: "none" };
-      }
+      return parseIntentText(text, cfg.owner);
     }
 
     if (provider === "gemini") {
       const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) return { type: "none" };
+      if (!apiKey) return noneIntent("llm_unavailable", { unavailable: true, provider });
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       const body = {
         contents: [{
@@ -130,24 +214,23 @@ JSON:`;
         body: JSON.stringify(body),
         signal: controller.signal
       });
-      if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`);
+      if (!res.ok) {
+        return noneIntent("llm_http_error", { unavailable: true, provider, status: res.status });
+      }
       const data = await res.json();
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
-      try {
-        const parsed = JSON.parse(text);
-        return validateIntent(parsed, cfg.owner);
-      } catch {
-        return { type: "none" };
-      }
+      return parseIntentText(text, cfg.owner);
     }
 
-    const body = {
+    const mode = (cfg.ollamaRequestMode || "stable").toLowerCase();
+    const disableThinking = mode === "stable" ? cfg.ollamaDisableThinking !== false : false;
+    const body = buildOllamaGenerateBody({
       model,
       system,
       prompt,
-      stream: false,
-      options: { temperature: 0.1 }
-    };
+      temperature: 0.1,
+      disableThinking
+    });
 
     const res = await fetch("http://127.0.0.1:11434/api/generate", {
       method: "POST",
@@ -156,20 +239,17 @@ JSON:`;
       signal: controller.signal
     });
 
-    if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
-    const data = await res.json();
-    const text = (data.response || "").trim();
-    try {
-      const parsed = JSON.parse(text);
-      return validateIntent(parsed, cfg.owner);
-    } catch {
-      return { type: "none" };
+    if (!res.ok) {
+      return noneIntent("llm_http_error", { unavailable: true, provider, status: res.status });
     }
+    const data = await res.json();
+    return parseOllamaIntentPayload(data, cfg.owner);
   } catch (e) {
-    return { type: "none" };
+    const reason = classifyLlmError(provider, e);
+    return noneIntent(reason, { unavailable: true, provider, error: String(e) });
   } finally {
     clearTimeout(timeout);
   }
 }
 
-module.exports = { llmParseIntent };
+module.exports = { llmParseIntent, validateIntent, noneIntent, parseIntentText, parseOllamaIntentPayload };

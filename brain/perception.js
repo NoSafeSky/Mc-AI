@@ -1,4 +1,5 @@
 // Lightweight perception snapshot for autonomy and bandit context.
+const { isLivingNonPlayerEntity, getCanonicalEntityName } = require("./entities");
 
 function armorTier(bot) {
   const armor = bot.inventory?.armor || [];
@@ -61,8 +62,8 @@ function nearbyMobs(bot, radius = 12) {
     const e = bot.entities[name];
     if (!e || !e.position || e.id === bot.entity.id) continue;
     const dist = e.position.distanceTo(center);
-    if (dist <= radius && e.type === "mob") {
-      list.push({ kind: e.kind || e.name || "mob", dist });
+    if (dist <= radius && isLivingNonPlayerEntity(e)) {
+      list.push({ kind: getCanonicalEntityName(e) || "unknown", type: e.type || "unknown", dist });
     }
   }
   return list.slice(0, 20);
