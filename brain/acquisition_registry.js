@@ -5,9 +5,10 @@ const {
   equivalentInventoryCount,
   isWoodEquivalent
 } = require("./item_equivalence");
+const { getRecipeVariants } = require("./recipe_db");
 
 const BLOCK_DROP_EQUIVALENTS = new Map([
-  ["cobblestone", ["stone", "cobblestone"]],
+  ["cobblestone", ["stone", "cobblestone", "cobbled_deepslate", "blackstone"]],
   ["log", [
     "oak_log",
     "spruce_log",
@@ -23,8 +24,14 @@ const BLOCK_DROP_EQUIVALENTS = new Map([
   ["raw_iron", ["iron_ore", "deepslate_iron_ore"]],
   ["raw_gold", ["gold_ore", "deepslate_gold_ore"]],
   ["raw_copper", ["copper_ore", "deepslate_copper_ore"]],
-  ["coal", ["coal_ore", "deepslate_coal_ore"]]
+  ["coal", ["coal_ore", "deepslate_coal_ore"]],
+  ["diamond", ["diamond_ore", "deepslate_diamond_ore"]],
+  ["emerald", ["emerald_ore", "deepslate_emerald_ore"]],
+  ["redstone", ["redstone_ore", "deepslate_redstone_ore"]],
+  ["lapis_lazuli", ["lapis_ore", "deepslate_lapis_ore"]]
 ]);
+
+const ANY_LOG_BLOCKS = BLOCK_DROP_EQUIVALENTS.get("log") || [];
 
 const MOB_DROP_SOURCES = new Map([
   ["porkchop", ["pig"]],
@@ -43,30 +50,6 @@ const CROP_SOURCES = new Map([
   ["potato", ["potatoes"]],
   ["beetroot", ["beetroots"]]
 ]);
-
-const SMELT_SOURCES = new Map([
-  ["charcoal", { input: "log", station: "furnace" }],
-  ["glass", { input: "sand", station: "furnace" }],
-  ["baked_potato", { input: "potato", station: "furnace" }],
-  ["cooked_beef", { input: "beef", station: "furnace" }],
-  ["cooked_chicken", { input: "chicken", station: "furnace" }],
-  ["iron_ingot", { input: "raw_iron", station: "furnace" }],
-  ["gold_ingot", { input: "raw_gold", station: "furnace" }],
-  ["copper_ingot", { input: "raw_copper", station: "furnace" }]
-]);
-
-const ANY_LOG_BLOCKS = [
-  "oak_log",
-  "spruce_log",
-  "birch_log",
-  "jungle_log",
-  "acacia_log",
-  "dark_oak_log",
-  "mangrove_log",
-  "cherry_log",
-  "crimson_stem",
-  "warped_stem"
-];
 
 function invCount(inventory, item, cfg = {}) {
   return Number(equivalentInventoryCount(inventory, item, cfg) || 0);
@@ -136,7 +119,19 @@ function computeWoodCompatibility(item, rawIngredients, normalizedIngredients, c
 
   const inv = ctx?.snapshot?.inventory || {};
   const woodRaw = rawIngredients.filter((ing) => isWoodEquivalent(ing.name));
-  if (!woodRaw.length) return { score: 0, components: {} };
+  let score = 0;
+  const components = {};
+
+  if (String(item) === "stick" && ctx?.cfg?.preferBambooForSticks === false) {
+    if (rawIngredients.some((ing) => normalizeItemName(ing.name) === "bamboo")) {
+      score += 120;
+      components.bambooPenalty = 120;
+    }
+  }
+
+  if (!woodRaw.length) {
+    return { score, components };
+  }
 
   let exactSatisfied = 0;
   let familySatisfied = 0;
@@ -144,9 +139,6 @@ function computeWoodCompatibility(item, rawIngredients, normalizedIngredients, c
     exactSatisfied += Math.min(exactInvCount(inv, ing.name), ing.count);
     familySatisfied += Math.min(invCount(inv, ing.name, ctx?.cfg || {}), ing.count);
   }
-
-  let score = 0;
-  const components = {};
 
   if (exactSatisfied > 0) {
     const bonus = -Math.min(24, exactSatisfied * 4);
@@ -161,13 +153,6 @@ function computeWoodCompatibility(item, rawIngredients, normalizedIngredients, c
   if (exactSatisfied === 0) {
     score += 14;
     components.speciesLockPenalty = 14;
-  }
-
-  if (String(item) === "stick" && ctx?.cfg?.preferBambooForSticks === false) {
-    if (rawIngredients.some((ing) => normalizeItemName(ing.name) === "bamboo")) {
-      score += 24;
-      components.bambooPenalty = 24;
-    }
   }
 
   if (hasIngredientsInInventory(inv, normalizedIngredients, ctx?.cfg || {})) {
@@ -233,15 +218,17 @@ function normalizeRecipeIngredientsForPlanning(ingredients, cfg = {}, log = null
 
 function stationSupported(ctx, station) {
   if (!station || station === "inventory") return true;
-  const configured = Array.isArray(ctx?.cfg?.supportedStations) && ctx.cfg.supportedStations.length
-    ? ctx.cfg.supportedStations
-    : ["inventory", "crafting_table", "furnace", "smoker", "blast_furnace", "stonecutter"];
+  const configured = Array.isArray(ctx?.cfg?.stationExecutionEnabled) && ctx.cfg.stationExecutionEnabled.length
+    ? ctx.cfg.stationExecutionEnabled
+    : (Array.isArray(ctx?.cfg?.supportedStations) && ctx.cfg.supportedStations.length
+      ? ctx.cfg.supportedStations
+      : ["inventory", "crafting_table", "furnace", "smoker", "blast_furnace", "stonecutter", "smithing_table"]);
   return configured.includes(station);
 }
 
 function parseRecipeIngredients(recipe, mcData) {
   const counts = new Map();
-  if (Array.isArray(recipe.inShape)) {
+  if (Array.isArray(recipe?.inShape)) {
     for (const row of recipe.inShape) {
       if (!Array.isArray(row)) continue;
       for (const entry of row) {
@@ -254,7 +241,7 @@ function parseRecipeIngredients(recipe, mcData) {
         counts.set(key, (counts.get(key) || 0) + 1);
       }
     }
-  } else if (Array.isArray(recipe.ingredients)) {
+  } else if (Array.isArray(recipe?.ingredients)) {
     for (const entry of recipe.ingredients) {
       if (entry == null) continue;
       const id = Number(entry);
@@ -272,144 +259,143 @@ function parseRecipeIngredients(recipe, mcData) {
 }
 
 function stationForRecipe(recipe) {
-  if (Array.isArray(recipe.inShape)) {
+  if (Array.isArray(recipe?.inShape)) {
     const height = recipe.inShape.length;
     const width = Math.max(0, ...recipe.inShape.map((r) => Array.isArray(r) ? r.length : 0));
-    if (height > 2 || width > 2) return "crafting_table";
-    return "inventory";
+    return (height > 2 || width > 2) ? "crafting_table" : "inventory";
   }
-  if (Array.isArray(recipe.ingredients)) {
+  if (Array.isArray(recipe?.ingredients)) {
     return recipe.ingredients.length > 4 ? "crafting_table" : "inventory";
   }
   return "inventory";
 }
 
-function recipeOutputsForPlanningItem(item, mcData) {
-  if (item === "planks") {
-    return Object.values(mcData.itemsByName || {})
-      .filter((it) => it && typeof it.name === "string" && it.name.endsWith("_planks"));
-  }
-  const exact = mcData.itemsByName[item];
-  return exact ? [exact] : [];
-}
-
-function getCraftOptions(item, count, ctx) {
-  const mcData = ctx.mcData;
-  const outputs = recipeOutputsForPlanningItem(item, mcData);
-  if (!outputs.length) return [];
+function getRecipeOptions(item, count, ctx) {
+  const version = ctx?.bot?.version || ctx?.cfg?.version || "1.21.1";
+  const variants = getRecipeVariants(item, {
+    version,
+    recipeExecutionScope: ctx?.cfg?.recipeExecutionScope || "craft_smelt_stations",
+    stationExecutionEnabled: ctx?.cfg?.stationExecutionEnabled || ctx?.cfg?.supportedStations
+  });
 
   const options = [];
-  for (const outputItem of outputs) {
-    const recipes = mcData.recipes[outputItem.id] || [];
-    for (const recipe of recipes) {
-      const outCount = Number(recipe?.result?.count || 1);
-      if (outCount <= 0) continue;
-      const runs = Math.max(1, Math.ceil(count / outCount));
-      const rawIngredients = parseRecipeIngredients(recipe, mcData).map((ing) => ({
-        name: ing.name,
-        count: ing.count * runs
-      }));
-      if (!rawIngredients.length) continue;
+  for (const variant of variants) {
+    if (!stationSupported(ctx, variant.station)) continue;
+    const runs = Math.max(1, Math.ceil(count / Math.max(1, Number(variant.outputCount || 1))));
+    const rawIngredients = (variant.ingredients || []).map((ing) => ({
+      name: normalizeItemName(ing.name),
+      count: Math.max(1, Number(ing.count || 1)) * runs
+    }));
+    if (!rawIngredients.length) continue;
 
-      const ingredients = normalizeRecipeIngredientsForPlanning(rawIngredients, ctx.cfg || {}, ctx.log, item);
-      if (!ingredients.length) continue;
+    const ingredients = normalizeRecipeIngredientsForPlanning(rawIngredients, ctx.cfg || {}, ctx.log, item);
+    if (!ingredients.length) continue;
 
-      const station = stationForRecipe(recipe);
-      if (!stationSupported(ctx, station)) continue;
+    const scoreInfo = scoreRecipeVariant(item, rawIngredients, ingredients, ctx);
+    const decompressionPenalty = ingredients.some((ing) => /_block$/.test(ing.name) && !/_block$/.test(item))
+      ? 40
+      : 0;
 
-      const scoreInfo = scoreRecipeVariant(item, rawIngredients, ingredients, ctx);
-      const rawVariantId = recipeVariantId(rawIngredients);
-      const variantId = item === "planks"
-        ? `${normalizeItemName(outputItem.name)}:${rawVariantId}`
-        : rawVariantId;
-      const decompressionPenalty = ingredients.some((ing) => /_block$/.test(ing.name) && !/_block$/.test(item))
-        ? 40
-        : 0;
-      const cost = 15 + ingredients.length * 3 + (station === "crafting_table" ? 6 : 0) + decompressionPenalty;
+    let baseCost = 20 + ingredients.length * 4 + decompressionPenalty;
+    if (variant.processType === "smelt") baseCost = 40 + count * 2;
+    if (variant.processType === "stonecut") baseCost = 24 + count;
+    if (variant.processType === "smithing") baseCost = 60 + count * 2;
+    if (variant.station === "crafting_table") baseCost += 6;
 
-      const option = {
+    const common = {
+      item,
+      outputItem: variant.outputItem || item,
+      count,
+      station: variant.station || "inventory",
+      runs,
+      outputCount: Math.max(1, Number(variant.outputCount || 1)),
+      ingredients,
+      rawIngredients,
+      cost: baseCost,
+      compatibilityScore: Number(scoreInfo.score || 0),
+      scoreBreakdown: scoreInfo.components || {},
+      variantId: variant.variantId
+    };
+
+    if (variant.processType === "smelt") {
+      const input = rawIngredients[0];
+      options.push({
+        provider: "smelt_recipe",
+        processType: "smelt",
+        input: input?.name,
+        inputCount: input?.count || count,
+        ...common
+      });
+    } else if (variant.processType === "stonecut" || variant.processType === "smithing") {
+      options.push({
+        provider: "station_recipe",
+        processType: variant.processType,
+        ...common
+      });
+    } else {
+      options.push({
         provider: "craft_recipe",
+        processType: "craft",
+        recipe: null,
+        ...common
+      });
+    }
+
+    if (typeof ctx.log === "function") {
+      ctx.log({
+        type: "recipe_choice_scored",
         item,
-        outputItem: normalizeItemName(outputItem.name),
-        count,
-        station,
-        runs,
-        outputCount: outCount,
-        recipe,
-        ingredients,
-        rawIngredients,
-        cost,
-        compatibilityScore: Number(scoreInfo.score || 0),
-        scoreBreakdown: scoreInfo.components || {},
-        variantId
-      };
-      options.push(option);
-      if (typeof ctx.log === "function") {
-        ctx.log({
-          type: "recipe_choice_scored",
-          item,
-          outputItem: option.outputItem,
-          variantId,
-          cost: option.cost,
-          compatibilityScore: option.compatibilityScore,
-          scoreBreakdown: option.scoreBreakdown,
-          ingredients: option.ingredients,
-          rawIngredients: option.rawIngredients
-        });
-      }
+        outputItem: common.outputItem,
+        variantId: common.variantId,
+        processType: variant.processType,
+        station: common.station,
+        cost: common.cost,
+        compatibilityScore: common.compatibilityScore,
+        scoreBreakdown: common.scoreBreakdown,
+        ingredients: common.ingredients,
+        rawIngredients: common.rawIngredients
+      });
     }
   }
 
   return options;
 }
 
-function getSmeltOption(item, count) {
-  const src = SMELT_SOURCES.get(item);
-  if (!src) return null;
-  return {
-    provider: "smelt_recipe",
-    item,
-    count,
-    station: src.station,
-    input: src.input,
-    inputCount: count,
-    cost: 40 + count * 2
-  };
-}
-
 function getGatherOptions(item, count, ctx) {
   if (ctx?.cfg?.autoGatherEnabled === false) return [];
   if (item === "planks") return [];
-  const mcData = ctx.mcData;
-  const options = [];
 
+  const mcData = ctx.mcData;
   let blockAliases = BLOCK_DROP_EQUIVALENTS.get(item) || [item];
   if (item === "log" || /(_log|_stem|_hyphae)$/.test(item)) {
     blockAliases = ANY_LOG_BLOCKS;
   }
-  const normalizedAliases = blockAliases.map((name) => normalizeItemName(name));
+
+  const blockNames = blockAliases
+    .map((name) => normalizeItemName(name))
+    .filter((name) => !!mcData.blocksByName?.[name]);
+  if (!blockNames.length) return [];
+
   const preferredBlocks = item === "cobblestone"
-    ? ["cobblestone", "stone"]
-    : normalizedAliases;
+    ? ["cobblestone", "stone", "cobbled_deepslate", "blackstone"].filter((name) => blockNames.includes(name))
+    : [...blockNames];
 
-  for (const blockName of blockAliases) {
-    const block = mcData.blocksByName?.[blockName];
-    if (!block) continue;
-    const toolRequirement = getBlockToolRequirement(block, mcData);
-    options.push({
-      provider: "gather_block",
-      item,
-      count,
-      blockNames: [normalizeItemName(blockName)],
-      preferredBlocks,
-      toolRequirement: toolRequirement || null,
-      cost: 45 + count,
-      compatibilityScore: 0,
-      variantId: normalizeItemName(blockName)
-    });
-  }
+  const preferredFirst = preferredBlocks[0] || blockNames[0];
+  const toolRequirement = preferredFirst
+    ? getBlockToolRequirement(mcData.blocksByName[preferredFirst], mcData)
+    : null;
 
-  return options;
+  return [{
+    provider: "gather_block",
+    item,
+    count,
+    blockNames,
+    preferredBlocks,
+    toolRequirement: toolRequirement || null,
+    cost: 45 + count,
+    compatibilityScore: 0,
+    variantId: `gather:${item}:${preferredFirst || blockNames[0]}`
+  }];
 }
 
 function getHarvestOption(item, count, ctx) {
@@ -430,7 +416,7 @@ function getMobDropOption(item, count, ctx) {
   if (ctx?.cfg?.autoGatherEnabled === false) return null;
   const mobs = MOB_DROP_SOURCES.get(item);
   if (!mobs || !mobs.length) return null;
-  const nearby = Object.values(ctx.bot.entities || {})
+  const nearby = Object.values(ctx.bot?.entities || {})
     .filter((e) => e?.name && mobs.includes(normalizeItemName(e.name)));
   const proximityPenalty = nearby.length ? 0 : 15;
   return {
@@ -462,16 +448,10 @@ function getAcquisitionOptions(itemName, count, ctx) {
   const optionCtx = {
     ...ctx,
     cfg: ctx?.cfg || {},
-    snapshot: ctx?.snapshot || { inventory: {} }
+    snapshot: ctx?.snapshot || { inventory: {}, nearbyResources: {} }
   };
 
-  options.push(...getCraftOptions(item, needed, optionCtx));
-  const smelt = getSmeltOption(item, needed);
-  if (smelt && !stationSupported(optionCtx, smelt.station)) {
-    // station not available by configuration; ignore this route
-  } else if (smelt) {
-    options.push(smelt);
-  }
+  options.push(...getRecipeOptions(item, needed, optionCtx));
   options.push(...getGatherOptions(item, needed, optionCtx));
   const harvest = getHarvestOption(item, needed, optionCtx);
   if (harvest) options.push(harvest);
@@ -492,9 +472,9 @@ function getAcquisitionOptions(itemName, count, ctx) {
     const aTotal = Number(a.cost || 0) + Number(a.compatibilityScore || 0);
     const bTotal = Number(b.cost || 0) + Number(b.compatibilityScore || 0);
     if (aTotal !== bTotal) return aTotal - bTotal;
-    if (a.provider !== b.provider) return String(a.provider).localeCompare(String(b.provider));
+    if ((a.provider || "") !== (b.provider || "")) return String(a.provider || "").localeCompare(String(b.provider || ""));
     if ((a.variantId || "") !== (b.variantId || "")) return String(a.variantId || "").localeCompare(String(b.variantId || ""));
-    return String(a.item).localeCompare(String(b.item));
+    return String(a.item || "").localeCompare(String(b.item || ""));
   });
 }
 
@@ -506,7 +486,6 @@ module.exports = {
   BLOCK_DROP_EQUIVALENTS,
   MOB_DROP_SOURCES,
   CROP_SOURCES,
-  SMELT_SOURCES,
   parseRecipeIngredients,
   stationForRecipe,
   recipeVariantId,

@@ -18,9 +18,10 @@ const cfg = Object.assign(
     commandPrefix: "bot",
     commandNoPrefixOwner: true,
     intentConfidenceThreshold: 0.72,
+    llmPrimaryRouting: true,
     structuredAck: true,
     taskTimeoutSec: 60,
-    taskNoProgressTimeoutSec: 15,
+    taskNoProgressTimeoutSec: 45,
     taskProgressHeartbeatSec: 3,
     maxTaskDistance: 32,
     noTargetTimeoutSec: 8,
@@ -39,9 +40,14 @@ const cfg = Object.assign(
     intelligenceDomains: ["craft", "move", "combat", "explore", "follow"],
     dependencyPlannerEnabled: true,
     dependencyMaxDepth: 10,
-    dependencyMaxNodes: 400,
-    dependencyPlanTimeoutMs: 3000,
-    supportedStations: ["inventory", "crafting_table", "furnace", "smoker", "blast_furnace", "stonecutter"],
+    dependencyMaxNodes: 1200,
+    dependencyPlanTimeoutMs: 8000,
+    supportedStations: ["inventory", "crafting_table", "furnace", "smoker", "blast_furnace", "stonecutter", "smithing_table"],
+    recipeExecutionScope: "craft_smelt_stations",
+    stationExecutionEnabled: ["inventory", "crafting_table", "furnace", "smoker", "blast_furnace", "stonecutter", "smithing_table"],
+    fuelPolicy: "inventory_first_then_charcoal_then_coal",
+    recipePlannerBeamWidth: 24,
+    recipeVariantCapPerItem: 32,
     autoGatherEnabled: true,
     autoGatherRadius: 48,
     gatherRadiusSteps: [24, 48, 72],
@@ -62,7 +68,10 @@ const cfg = Object.assign(
     preferBambooForSticks: false,
     strictHarvestToolGate: true,
     autoAcquireRequiredTools: true,
-    missingResourcePolicy: "ask_before_move",
+    missingResourcePolicy: "auto_relocate",
+    missingResourceAutoRings: [120, 192, 256],
+    missingResourceMaxRelocations: 3,
+    missingResourceRelocateTimeoutSec: 45,
     missingResourceConfirmTimeoutSec: 12,
     missingResourceExpandedRadius: 120,
     dynamicMoveTimeoutBaseMs: 12000,
@@ -543,12 +552,34 @@ async function handleChat(username, message, source = "chat") {
     });
   } else if (isOwner && ownerCommandText) {
     const confidenceThreshold = cfg.intentConfidenceThreshold || 0.72;
+    const llmPrimaryRouting = cfg.llmPrimaryRouting !== false;
     const ruleIntent = parseNLU(ownerCommandText, cfg, bot);
     intent = ruleIntent;
 
-    const shouldTryLLM = (ruleIntent.type === "none" || (ruleIntent.confidence || 0) < confidenceThreshold) && looksActionable(ownerCommandText);
-    if (shouldTryLLM) {
-      const llmIntent = await llmParseIntent(ownerCommandText, cfg, state);
+    let llmIntent = null;
+    if (llmPrimaryRouting) {
+      llmIntent = await llmParseIntent(ownerCommandText, cfg, state);
+      if (llmIntent?.unavailable) {
+        log({
+          type: "llm_unavailable",
+          provider: cfg.llmProvider,
+          reason: llmIntent.reason || "unavailable",
+          reasonCode: llmIntent.reason || "unavailable",
+          status: llmIntent.status,
+          error: llmIntent.error
+        });
+        logLlmFailureSignal(cfg.llmProvider, llmIntent, { where: "intent" });
+      }
+      if (llmIntent && llmIntent.type !== "none" && (llmIntent.confidence || 0) >= confidenceThreshold) {
+        intent = llmIntent;
+      }
+    }
+
+    const shouldTryLLMFallback = !llmPrimaryRouting
+      && (ruleIntent.type === "none" || (ruleIntent.confidence || 0) < confidenceThreshold)
+      && looksActionable(ownerCommandText);
+    if (shouldTryLLMFallback) {
+      llmIntent = await llmParseIntent(ownerCommandText, cfg, state);
       if (llmIntent?.unavailable) {
         log({
           type: "llm_unavailable",
@@ -586,7 +617,9 @@ async function handleChat(username, message, source = "chat") {
       from: username,
       text: ownerCommandText,
       intent,
-      threshold: confidenceThreshold
+      threshold: confidenceThreshold,
+      llmPrimaryRouting,
+      llmIntentType: llmIntent?.type || null
     });
 
   }
@@ -595,12 +628,29 @@ async function handleChat(username, message, source = "chat") {
     isOwner &&
     intent.type === "craftItem" &&
     cfg.intelligenceEnabled !== false &&
-    cfg.dependencyPlannerEnabled !== false &&
-    !intent.gatherRadiusOverride &&
-    !intent.previewNeeds
+    cfg.dependencyPlannerEnabled !== false
   ) {
     const preview = buildGoalPlan(bot, intent, cfg, null, () => {});
-    if (preview?.ok) {
+    if (!preview?.ok) {
+      const reason = preview?.code || "unsupported_craft_target";
+      intent = {
+        type: "none",
+        source: intent.source || "rules",
+        confidence: 0,
+        reason: reason === "unknown_craft_target" ? "unknown_craft_target" : "unsupported_craft_target",
+        plannerCode: preview?.code || null,
+        requested: intent.item || null
+      };
+      log({
+        type: "intent_reject",
+        from: username,
+        reason: intent.reason,
+        plannerCode: preview?.code || null,
+        plannerReason: preview?.reason || null,
+        nextNeed: preview?.nextNeed || null,
+        requested: intent.requested
+      });
+    } else if (!intent.gatherRadiusOverride && !intent.previewNeeds) {
       intent.goalId = preview.goalId;
       intent.constraints = preview.constraints;
       intent.previewNeeds = preview.needs;
@@ -617,6 +667,18 @@ async function handleChat(username, message, source = "chat") {
     if (isOwner && looksActionable(ownerCommandText) && intent.reason === "unknown_craft_target") {
       bot.chat("can't: unknown craft target");
       log({ type: "intent_reject", from: username, reason: "unknown_craft_target", text: ownerCommandText, requested: intent.requested || null });
+      return;
+    }
+    if (isOwner && looksActionable(ownerCommandText) && intent.reason === "unsupported_craft_target") {
+      bot.chat("can't: unsupported craft target");
+      log({
+        type: "intent_reject",
+        from: username,
+        reason: "unsupported_craft_target",
+        plannerCode: intent.plannerCode || null,
+        text: ownerCommandText,
+        requested: intent.requested || null
+      });
       return;
     }
 

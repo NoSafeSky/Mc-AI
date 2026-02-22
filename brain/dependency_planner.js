@@ -1,11 +1,13 @@
 const { buildCapabilitySnapshot, normalizeItemName } = require("./knowledge");
 const { getAcquisitionOptions } = require("./acquisition_registry");
+const { buildRecipeDb } = require("./recipe_db");
 const {
   normalizePlanningItem,
   equivalentInventoryConsume
 } = require("./item_equivalence");
 
 let goalSeq = 0;
+const loggedRecipeDbVersions = new Set();
 
 function nextGoalId() {
   goalSeq += 1;
@@ -68,6 +70,15 @@ function fail(code, reason, nextNeed = null) {
   return { ok: false, code, reason, nextNeed };
 }
 
+function inventorySignature(inventory = {}, cap = 30) {
+  return Object.entries(inventory || {})
+    .filter(([, count]) => Number(count || 0) > 0)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .slice(0, cap)
+    .map(([name, count]) => `${name}:${count}`)
+    .join("|");
+}
+
 function snapshotContext(ctx) {
   return {
     virtualInventory: cloneInventory(ctx.virtualInventory),
@@ -84,7 +95,7 @@ function restoreContext(ctx, snapshot) {
 
 function setRootNeeds(ctx, option, item, count) {
   if (ctx.rootNeeds.length > 0) return;
-  if (option.provider === "craft_recipe" && Array.isArray(option.ingredients)) {
+  if (Array.isArray(option.ingredients) && option.ingredients.length) {
     ctx.rootNeeds = option.ingredients.map((ing) => ({ item: ing.name, count: ing.count }));
     if (option.station && option.station !== "inventory") {
       ctx.rootNeeds.push({ station: option.station });
@@ -95,6 +106,81 @@ function setRootNeeds(ctx, option, item, count) {
   if (option.station && option.station !== "inventory") {
     ctx.rootNeeds.push({ station: option.station });
   }
+}
+
+function checkBudget(ctx) {
+  if (Date.now() - ctx.startedAt > ctx.timeoutMs) {
+    if (!ctx.budgetExhaustedLogged) {
+      ctx.log({
+        type: "planner_budget_exhausted",
+        goalId: ctx.goalId,
+        reason: "timeout",
+        elapsedMs: Date.now() - ctx.startedAt,
+        nodeCount: ctx.nodeCount,
+        maxNodes: ctx.maxNodes,
+        timeoutMs: ctx.timeoutMs
+      });
+      ctx.budgetExhaustedLogged = true;
+    }
+    return fail("dependency_plan_timeout", "dependency planner timeout", "reduce request scope");
+  }
+  if (ctx.nodeCount > ctx.maxNodes) {
+    if (!ctx.budgetExhaustedLogged) {
+      ctx.log({
+        type: "planner_budget_exhausted",
+        goalId: ctx.goalId,
+        reason: "node_limit",
+        elapsedMs: Date.now() - ctx.startedAt,
+        nodeCount: ctx.nodeCount,
+        maxNodes: ctx.maxNodes,
+        timeoutMs: ctx.timeoutMs
+      });
+      ctx.budgetExhaustedLogged = true;
+    }
+    return fail("dependency_node_limit", `dependency node limit exceeded at ${ctx.currentItem || "unknown"}`);
+  }
+  return null;
+}
+
+function pruneOptions(item, options, ctx) {
+  const originalLength = options.length;
+  let out = options;
+
+  if (ctx.variantCap > 0 && out.length > ctx.variantCap) {
+    out = out.slice(0, ctx.variantCap);
+    ctx.log({
+      type: "planner_variant_pruned",
+      goalId: ctx.goalId,
+      item,
+      from: originalLength,
+      to: out.length,
+      reason: "variant_cap"
+    });
+  }
+
+  if (ctx.beamWidth > 0 && out.length > ctx.beamWidth) {
+    const from = out.length;
+    out = out.slice(0, ctx.beamWidth);
+    ctx.log({
+      type: "planner_variant_pruned",
+      goalId: ctx.goalId,
+      item,
+      from,
+      to: out.length,
+      reason: "beam_width"
+    });
+  }
+
+  return out;
+}
+
+function memoKey(ctx, item, missing, depth) {
+  return `${item}|${missing}|${depth}|${inventorySignature(ctx.virtualInventory, 24)}`;
+}
+
+function optionSortKey(option) {
+  const total = Number(option.cost || 0) + Number(option.compatibilityScore || 0);
+  return `${String(total).padStart(8, "0")}|${option.provider || ""}|${option.variantId || ""}`;
 }
 
 function planWithOption(ctx, item, missing, option, depth, stack) {
@@ -108,8 +194,8 @@ function planWithOption(ctx, item, missing, option, depth, stack) {
     return { ok: true };
   }
 
-  if (option.provider === "craft_recipe") {
-    for (const ingredient of option.ingredients) {
+  if (option.provider === "craft_recipe" || option.provider === "station_recipe") {
+    for (const ingredient of option.ingredients || []) {
       const planned = planItem(ctx, ingredient.name, ingredient.count, depth + 1, stack);
       if (!planned.ok) return planned;
     }
@@ -125,12 +211,15 @@ function planWithOption(ctx, item, missing, option, depth, stack) {
       addStep(ctx, "ensure_station", { station: option.station });
     }
 
-    addStep(ctx, "craft_recipe", {
+    const stepAction = option.provider === "station_recipe" ? "station_recipe" : "craft_recipe";
+    addStep(ctx, stepAction, {
       item,
       count: missing,
       station: option.station || "inventory",
-      recipe: option.recipe,
-      outputItem: option.outputItem || item
+      processType: option.processType || "craft",
+      variantId: option.variantId || null,
+      outputItem: option.outputItem || item,
+      ingredients: option.ingredients || []
     });
 
     addInv(ctx, item, Number(option.outputCount || 1) * Number(option.runs || 1));
@@ -140,17 +229,23 @@ function planWithOption(ctx, item, missing, option, depth, stack) {
   }
 
   if (option.provider === "smelt_recipe") {
-    const inputPlan = planItem(ctx, option.input, option.inputCount, depth + 1, stack);
-    if (!inputPlan.ok) return inputPlan;
-    addStep(ctx, "ensure_station", { station: option.station });
+    for (const ingredient of option.ingredients || []) {
+      const planned = planItem(ctx, ingredient.name, ingredient.count, depth + 1, stack);
+      if (!planned.ok) return planned;
+    }
+
+    addStep(ctx, "ensure_station", { station: option.station || "furnace" });
     addStep(ctx, "smelt_recipe", {
       item,
       count: missing,
-      station: option.station,
-      input: option.input,
-      inputCount: option.inputCount
+      station: option.station || "furnace",
+      processType: "smelt",
+      variantId: option.variantId || null,
+      ingredients: option.ingredients || [],
+      input: option.input || option.ingredients?.[0]?.name || null,
+      inputCount: option.inputCount || option.ingredients?.[0]?.count || missing
     });
-    addInv(ctx, item, missing);
+    addInv(ctx, item, Number(option.outputCount || 1) * Number(option.runs || 1));
     const left = consumeInv(ctx, item, missing).remainder;
     if (left > 0) return fail("smelt_yield_shortfall", `need ${item}`, `smelt ${item}`);
     return { ok: true };
@@ -204,12 +299,12 @@ function planItem(ctx, itemName, count, depth, stack = []) {
   if (stack.includes(item)) {
     return fail("dependency_cycle", `dependency cycle detected at ${item}`, `acquire ${item} manually`);
   }
-  if (Date.now() - ctx.startedAt > ctx.timeoutMs) {
-    return fail("dependency_plan_timeout", "dependency planner timeout", "reduce request scope");
-  }
   if (depth > ctx.maxDepth) return fail("dependency_depth_limit", `dependency depth exceeded at ${item}`);
+
+  ctx.currentItem = item;
   ctx.nodeCount += 1;
-  if (ctx.nodeCount > ctx.maxNodes) return fail("dependency_node_limit", `dependency node limit exceeded at ${item}`);
+  const budgetFailure = checkBudget(ctx);
+  if (budgetFailure) return budgetFailure;
 
   const consumed = consumeInv(ctx, item, count);
   const missing = consumed.remainder;
@@ -226,6 +321,11 @@ function planItem(ctx, itemName, count, depth, stack = []) {
     return { ok: true };
   }
 
+  const key = memoKey(ctx, item, missing, depth);
+  if (ctx.failureMemo.has(key)) {
+    return { ...ctx.failureMemo.get(key) };
+  }
+
   const optionCtx = {
     bot: ctx.bot,
     mcData: ctx.mcData,
@@ -236,8 +336,12 @@ function planItem(ctx, itemName, count, depth, stack = []) {
     },
     log: ctx.log
   };
+
   ctx.log({ type: "dependency_expand", item, count: missing, depth });
-  const options = getAcquisitionOptions(item, missing, optionCtx);
+  let options = getAcquisitionOptions(item, missing, optionCtx);
+  options = options.slice().sort((a, b) => optionSortKey(a).localeCompare(optionSortKey(b)));
+  options = pruneOptions(item, options, ctx);
+
   let bestFailure = null;
   const nextStack = [...stack, item];
 
@@ -249,13 +353,16 @@ function planItem(ctx, itemName, count, depth, stack = []) {
       count: missing,
       optionIndex: i,
       provider: option.provider,
-      station: option.station || null
+      station: option.station || null,
+      processType: option.processType || null
     });
-    if (option.provider === "craft_recipe") {
+    if (option.provider === "craft_recipe" || option.provider === "smelt_recipe" || option.provider === "station_recipe") {
       ctx.log({
         type: "recipe_variant_choice",
         item,
         variantId: option.variantId || null,
+        processType: option.processType || null,
+        station: option.station || null,
         compatibilityScore: Number(option.compatibilityScore || 0),
         ingredients: option.ingredients || []
       });
@@ -276,7 +383,18 @@ function planItem(ctx, itemName, count, depth, stack = []) {
     }
   }
 
-  return bestFailure || fail("unsupported_acquisition", `unsupported acquisition for ${item}`, `acquire ${item} manually`);
+  const resolvedFailure = bestFailure || fail("unsupported_acquisition", `unsupported acquisition for ${item}`, `acquire ${item} manually`);
+  if (resolvedFailure.code === "unsupported_acquisition") {
+    ctx.log({
+      type: "acquisition_unsupported_source",
+      goalId: ctx.goalId,
+      item,
+      reason: resolvedFailure.reason,
+      nextNeed: resolvedFailure.nextNeed || null
+    });
+  }
+  ctx.failureMemo.set(key, resolvedFailure);
+  return resolvedFailure;
 }
 
 function buildGoalPlan(bot, intent, cfg = {}, snapshot = null, log = () => {}) {
@@ -285,9 +403,21 @@ function buildGoalPlan(bot, intent, cfg = {}, snapshot = null, log = () => {}) {
   const goalId = intent?.goalId || nextGoalId();
   const started = Date.now();
   const maxDepth = toLimit(cfg.dependencyMaxDepth ?? 10, 10);
-  const maxNodes = toLimit(cfg.dependencyMaxNodes ?? 400, 400);
-  const timeoutMs = toCount(cfg.dependencyPlanTimeoutMs ?? 3000, 3000, null);
+  const maxNodes = toLimit(cfg.dependencyMaxNodes ?? 1200, 1200);
+  const timeoutMs = toCount(cfg.dependencyPlanTimeoutMs ?? 8000, 8000, null);
+  const beamWidth = toLimit(cfg.recipePlannerBeamWidth ?? 24, 24);
+  const variantCap = toLimit(cfg.recipeVariantCapPerItem ?? 32, 32);
 
+  log({
+    type: "planner_budget_start",
+    goalId,
+    item,
+    count,
+    timeoutMs,
+    maxNodes,
+    beamWidth,
+    variantCap
+  });
   log({ type: "goal_plan_start", goalId, domain: "craft", item, count });
 
   if (!item) {
@@ -301,7 +431,17 @@ function buildGoalPlan(bot, intent, cfg = {}, snapshot = null, log = () => {}) {
     };
   }
 
-  const mcData = require("minecraft-data")(bot.version);
+  const recipeDb = buildRecipeDb(bot.version);
+  if (!loggedRecipeDbVersions.has(recipeDb.version)) {
+    loggedRecipeDbVersions.add(recipeDb.version);
+    log({
+      type: "recipe_db_loaded",
+      version: recipeDb.version,
+      outputs: recipeDb.entriesByOutput?.size || 0,
+      variants: recipeDb.variantsById?.size || 0
+    });
+  }
+  const mcData = recipeDb.mcData;
   const pseudoPlanningTargets = new Set(["planks", "log"]);
   if (!mcData.itemsByName[item] && !pseudoPlanningTargets.has(item)) {
     return {
@@ -326,6 +466,11 @@ function buildGoalPlan(bot, intent, cfg = {}, snapshot = null, log = () => {}) {
     nodeCount: 0,
     startedAt: started,
     timeoutMs,
+    beamWidth,
+    variantCap,
+    budgetExhaustedLogged: false,
+    currentItem: null,
+    failureMemo: new Map(),
     virtualInventory: cloneInventory(snap.inventory),
     steps: [],
     rootNeeds: [],
@@ -333,27 +478,34 @@ function buildGoalPlan(bot, intent, cfg = {}, snapshot = null, log = () => {}) {
   };
 
   const result = planItem(ctx, item, count, 0);
+  const elapsedMs = Date.now() - started;
+  const budgetStats = {
+    elapsedMs,
+    expandedNodes: ctx.nodeCount,
+    maxNodes,
+    timeoutMs,
+    beamWidth,
+    variantCap
+  };
+
   if (!result.ok) {
-    log({ type: "goal_plan_fail", goalId, domain: "craft", code: result.code, reason: result.reason, nextNeed: result.nextNeed || null });
+    log({
+      type: "goal_plan_fail",
+      goalId,
+      domain: "craft",
+      code: result.code,
+      reason: result.reason,
+      nextNeed: result.nextNeed || null,
+      budgetStats
+    });
     return {
       ok: false,
       goalId,
       domain: "craft",
       code: result.code || "goal_plan_fail",
       reason: result.reason || "failed to build plan",
-      nextNeed: result.nextNeed || null
-    };
-  }
-
-  if (Date.now() - started > timeoutMs) {
-    log({ type: "goal_plan_fail", goalId, domain: "craft", code: "dependency_plan_timeout", reason: "dependency planner timeout" });
-    return {
-      ok: false,
-      goalId,
-      domain: "craft",
-      code: "dependency_plan_timeout",
-      reason: "dependency planner timeout",
-      nextNeed: "reduce request scope"
+      nextNeed: result.nextNeed || null,
+      budgetStats
     };
   }
 
@@ -368,7 +520,8 @@ function buildGoalPlan(bot, intent, cfg = {}, snapshot = null, log = () => {}) {
     constraints: {
       timeoutSec: intent?.constraints?.timeoutSec || cfg.autoGatherTimeoutSec || cfg.craftJobTimeoutSec || 90,
       maxDistance: intent?.constraints?.maxDistance || cfg.autoGatherRadius || cfg.maxTaskDistance || 48
-    }
+    },
+    budgetStats
   };
   log({
     type: "goal_plan_built",
@@ -377,7 +530,8 @@ function buildGoalPlan(bot, intent, cfg = {}, snapshot = null, log = () => {}) {
     item,
     count,
     stepCount: plan.steps.length,
-    needs: plan.needs
+    needs: plan.needs,
+    budgetStats
   });
   return plan;
 }

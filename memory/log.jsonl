@@ -744,3 +744,551 @@
 {"t":1771779542728,"type":"step_terminal","taskId":2,"goalId":"goal_1771779541943_2","stepId":"goal_1771779541943_2_s1","action":"craft_recipe","status":"success"}
 {"t":1771779542728,"type":"craft_job_success","item":"planks","count":1}
 {"t":1771779542729,"type":"task_success","taskId":2,"intent":"craftItem"}
+{"t":1771781646763,"type":"spawn"}
+{"t":1771781646767,"type":"autonomy_disabled"}
+{"t":1771781670024,"type":"chat_in","from":"NoSafeSky","message":"hi","source":"chat"}
+{"t":1771781670027,"type":"intent_decision","from":"NoSafeSky","text":"hi","intent":{"type":"none","source":"rules","confidence":0},"threshold":0.72}
+{"t":1771781685818,"type":"chat_reply","to":"NoSafeSky","reply":"Hello! How can I assist you today?","source":"llm"}
+{"t":1771781701058,"type":"chat_in","from":"NoSafeSky","message":"hi again","source":"chat"}
+{"t":1771781701059,"type":"intent_decision","from":"NoSafeSky","text":"hi again","intent":{"type":"none","source":"rules","confidence":0},"threshold":0.72}
+{"t":1771781724639,"type":"chat_reply","to":"NoSafeSky","reply":"Hello again! How can I help you today?","source":"llm"}
+{"t":1771781736337,"type":"chat_in","from":"NoSafeSky","message":"hi","source":"chat"}
+{"t":1771781736338,"type":"intent_decision","from":"NoSafeSky","text":"hi","intent":{"type":"none","source":"rules","confidence":0},"threshold":0.72}
+{"t":1771781740935,"type":"chat_reply","to":"NoSafeSky","reply":"Hello again! How can I assist you today?","source":"llm"}
+{"t":1771781752390,"type":"chat_in","from":"NoSafeSky","message":"craft me a wooden sword","source":"chat"}
+{"t":1771781752391,"type":"intent_decision","from":"NoSafeSky","text":"craft me a wooden sword","intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"rules","confidence":0.92},"threshold":0.72}
+{"t":1771781753155,"type":"command_ack","taskId":1,"intent":"craftItem","latencyMs":0}
+{"t":1771781753157,"type":"task_start","taskId":1,"intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"rules","confidence":0.92,"goalId":"goal_1771781752392_1","constraints":{"timeoutSec":90,"maxDistance":48},"previewNeeds":[]}}
+{"t":1771781753157,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771781752392_1","stepId":null,"stepAction":"craftItem","attempt":0,"gatherRingIndex":null,"elapsedMs":1,"msg":"task started"}
+{"t":1771781753159,"type":"craft_job_start","item":"wooden_sword","count":1}
+{"t":1771781753160,"type":"craft_job_success","item":"wooden_sword","count":1}
+{"t":1771781753161,"type":"task_success","taskId":1,"intent":"craftItem"}
+{"t":1771781768119,"type":"chat_in","from":"NoSafeSky","message":"follow","source":"chat"}
+{"t":1771781771765,"type":"intent_decision","from":"NoSafeSky","text":"follow","intent":{"type":"follow","target":"NoSafeSky","source":"llm","confidence":1},"threshold":0.72}
+{"t":1771781771766,"type":"command_ack","taskId":2,"intent":"follow","latencyMs":0}
+{"t":1771781771767,"type":"task_start","taskId":2,"intent":{"type":"follow","target":"NoSafeSky","source":"llm","confidence":1}}
+{"t":1771781771767,"type":"task_progress","taskId":2,"intent":"follow","goalId":null,"stepId":null,"stepAction":"follow","attempt":0,"gatherRingIndex":null,"elapsedMs":0,"msg":"task started"}
+{"t":1771781771780,"type":"follow","playerName":"NoSafeSky"}
+{"t":1771781771780,"type":"task_success","taskId":2,"intent":"follow"}
+{"t":1771781785891,"type":"chat_in","from":"NoSafeSky","message":"stop","source":"chat"}
+{"t":1771781785892,"type":"intent_decision","from":"NoSafeSky","text":"stop","intent":{"type":"stop","source":"rules","confidence":1},"threshold":0.72}
+{"t":1771781785893,"type":"command_ack","taskId":3,"intent":"stop","latencyMs":1}
+{"t":1771781785893,"type":"task_start","taskId":3,"intent":{"type":"stop","source":"rules","confidence":1}}
+{"t":1771781785893,"type":"task_progress","taskId":3,"intent":"stop","goalId":null,"stepId":null,"stepAction":"stop","attempt":0,"gatherRingIndex":null,"elapsedMs":0,"msg":"task started"}
+{"t":1771781785894,"type":"stop"}
+{"t":1771781785895,"type":"task_success","taskId":3,"intent":"stop"}
+{"t":1771781791330,"type":"chat_in","from":"NoSafeSky","message":"come","source":"chat"}
+{"t":1771781791331,"type":"intent_decision","from":"NoSafeSky","text":"come","intent":{"type":"come","target":"NoSafeSky","source":"rules","confidence":0.98},"threshold":0.72}
+{"t":1771781791332,"type":"command_ack","taskId":4,"intent":"come","latencyMs":0}
+{"t":1771781791332,"type":"task_start","taskId":4,"intent":{"type":"come","target":"NoSafeSky","source":"rules","confidence":0.98}}
+{"t":1771781791333,"type":"task_progress","taskId":4,"intent":"come","goalId":null,"stepId":null,"stepAction":"come","attempt":0,"gatherRingIndex":null,"elapsedMs":1,"msg":"task started"}
+{"t":1771781791339,"type":"reasoner_try","step":"come","attempt":0}
+{"t":1771781794405,"type":"task_progress","taskId":4,"intent":"come","goalId":null,"stepId":null,"stepAction":"come","attempt":0,"gatherRingIndex":null,"elapsedMs":3073,"msg":"coming to owner"}
+{"t":1771781794540,"type":"chat_in","from":"NoSafeSky","message":"hi","source":"chat"}
+{"t":1771781794541,"type":"intent_decision","from":"NoSafeSky","text":"hi","intent":{"type":"none","source":"rules","confidence":0},"threshold":0.72}
+{"t":1771781796828,"type":"chat_reply","to":"NoSafeSky","reply":"Hello again! How can I assist you today?","source":"llm"}
+{"t":1771781797519,"type":"task_progress","taskId":4,"intent":"come","goalId":null,"stepId":null,"stepAction":"come","attempt":0,"gatherRingIndex":null,"elapsedMs":6187,"msg":"coming to owner"}
+{"t":1771781800632,"type":"task_progress","taskId":4,"intent":"come","goalId":null,"stepId":null,"stepAction":"come","attempt":0,"gatherRingIndex":null,"elapsedMs":9300,"msg":"coming to owner"}
+{"t":1771781803703,"type":"task_progress","taskId":4,"intent":"come","goalId":null,"stepId":null,"stepAction":"come","attempt":0,"gatherRingIndex":null,"elapsedMs":12371,"msg":"coming to owner"}
+{"t":1771781806539,"type":"task_stall_fail","taskId":4,"intent":"come","goalId":null,"stepId":null,"stepAction":"come","reason":"stalled at come","nextNeed":"move to open area","elapsedMs":15207}
+{"t":1771781806854,"type":"task_fail","taskId":4,"intent":"come","reason":"stalled at come","code":"task_stalled","nextNeed":"move to open area"}
+{"t":1771781814787,"type":"chat_in","from":"NoSafeSky","message":"craft a wooden sword","source":"chat"}
+{"t":1771781814788,"type":"intent_decision","from":"NoSafeSky","text":"craft a wooden sword","intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"rules","confidence":0.92},"threshold":0.72}
+{"t":1771781816289,"type":"command_ack","taskId":5,"intent":"craftItem","latencyMs":0}
+{"t":1771781816290,"type":"task_start","taskId":5,"intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"rules","confidence":0.92,"goalId":"goal_1771781814788_2","constraints":{"timeoutSec":90,"maxDistance":48},"previewNeeds":[]}}
+{"t":1771781816290,"type":"task_progress","taskId":5,"intent":"craftItem","goalId":"goal_1771781814788_2","stepId":null,"stepAction":"craftItem","attempt":0,"gatherRingIndex":null,"elapsedMs":0,"msg":"task started"}
+{"t":1771781816291,"type":"craft_job_start","item":"wooden_sword","count":1}
+{"t":1771781816291,"type":"craft_job_success","item":"wooden_sword","count":1}
+{"t":1771781816292,"type":"task_success","taskId":5,"intent":"craftItem"}
+{"t":1771781866816,"type":"chat_in","from":"NoSafeSky","message":"craft me another wooden sword","source":"chat"}
+{"t":1771781869294,"type":"intent_decision","from":"NoSafeSky","text":"craft me another wooden sword","intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"llm","confidence":0.95},"threshold":0.72}
+{"t":1771781870726,"type":"command_ack","taskId":6,"intent":"craftItem","latencyMs":0}
+{"t":1771781870727,"type":"task_start","taskId":6,"intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"llm","confidence":0.95,"goalId":"goal_1771781869294_3","constraints":{"timeoutSec":90,"maxDistance":48},"previewNeeds":[]}}
+{"t":1771781870727,"type":"task_progress","taskId":6,"intent":"craftItem","goalId":"goal_1771781869294_3","stepId":null,"stepAction":"craftItem","attempt":0,"gatherRingIndex":null,"elapsedMs":0,"msg":"task started"}
+{"t":1771781870727,"type":"craft_job_start","item":"wooden_sword","count":1}
+{"t":1771781870728,"type":"craft_job_success","item":"wooden_sword","count":1}
+{"t":1771781870728,"type":"task_success","taskId":6,"intent":"craftItem"}
+{"t":1771781877960,"type":"chat_in","from":"NoSafeSky","message":"bot inv","source":"chat"}
+{"t":1771781877961,"type":"inventory_debug","tableCount":0,"plankCount":4,"logCount":62,"cobbleCount":0,"sample":[{"name":"oak_log","count":62,"slot":9},{"name":"stick","count":3,"slot":10},{"name":"wooden_sword","count":1,"slot":11},{"name":"oak_planks","count":4,"slot":12}]}
+{"t":1771781893328,"type":"chat_in","from":"NoSafeSky","message":"teleported 12__12 to nosafesky]","source":"chat"}
+{"t":1771781893330,"type":"intent_decision","from":"NoSafeSky","text":"teleported 12__12 to nosafesky]","intent":{"type":"none","source":"rules","confidence":0},"threshold":0.72}
+{"t":1771781894860,"type":"chat_reply","to":"NoSafeSky","reply":"Player 12__12 has been teleported to NoSafeSky.","source":"llm"}
+{"t":1771781904122,"type":"chat_in","from":"NoSafeSky","message":"craft me a wooden sword","source":"chat"}
+{"t":1771781904123,"type":"intent_decision","from":"NoSafeSky","text":"craft me a wooden sword","intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"rules","confidence":0.92},"threshold":0.72}
+{"t":1771781905485,"type":"command_ack","taskId":7,"intent":"craftItem","latencyMs":0}
+{"t":1771781905486,"type":"task_start","taskId":7,"intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"rules","confidence":0.92,"goalId":"goal_1771781904124_4","constraints":{"timeoutSec":90,"maxDistance":48},"previewNeeds":[{"item":"planks","count":2},{"item":"stick","count":1},{"station":"crafting_table"}]}}
+{"t":1771781905487,"type":"task_progress","taskId":7,"intent":"craftItem","goalId":"goal_1771781904124_4","stepId":null,"stepAction":"craftItem","attempt":0,"gatherRingIndex":null,"elapsedMs":1,"msg":"task started"}
+{"t":1771781905487,"type":"craft_job_start","item":"wooden_sword","count":1}
+{"t":1771781905488,"type":"need_acquire_start","goalId":"goal_1771781904124_4","step":{"id":"goal_1771781904124_4_s1","action":"gather_block","args":{"item":"log","count":1,"blockNames":["oak_log","spruce_log","birch_log","jungle_log","acacia_log","dark_oak_log","mangrove_log","cherry_log","crimson_stem","warped_stem"],"preferredBlocks":["oak_log","spruce_log","birch_log","jungle_log","acacia_log","dark_oak_log","mangrove_log","cherry_log","crimson_stem","warped_stem"],"toolRequirement":null},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771781905489,"type":"step_progress","taskId":7,"goalId":"goal_1771781904124_4","stepId":"goal_1771781904124_4_s1","action":"gather_block","msg":"start gather_block"}
+{"t":1771781905490,"type":"reasoner_try","step":"gather_block","attempt":0}
+{"t":1771781908878,"type":"task_progress","taskId":7,"intent":"craftItem","goalId":"goal_1771781904124_4","stepId":"goal_1771781904124_4_s1","stepAction":"gather_block","attempt":1,"gatherRingIndex":1,"elapsedMs":3392,"msg":"gather log r24 try 1/2"}
+{"t":1771781911890,"type":"task_progress","taskId":7,"intent":"craftItem","goalId":"goal_1771781904124_4","stepId":"goal_1771781904124_4_s1","stepAction":"gather_block","attempt":1,"gatherRingIndex":1,"elapsedMs":6404,"msg":"gather log r24 try 1/2"}
+{"t":1771781914952,"type":"task_progress","taskId":7,"intent":"craftItem","goalId":"goal_1771781904124_4","stepId":"goal_1771781904124_4_s1","stepAction":"gather_block","attempt":1,"gatherRingIndex":1,"elapsedMs":9466,"msg":"gather log r24 try 1/2"}
+{"t":1771781918012,"type":"task_progress","taskId":7,"intent":"craftItem","goalId":"goal_1771781904124_4","stepId":"goal_1771781904124_4_s1","stepAction":"gather_block","attempt":1,"gatherRingIndex":1,"elapsedMs":12526,"msg":"gather log r24 try 1/2"}
+{"t":1771781920562,"type":"task_stall_fail","taskId":7,"intent":"craftItem","goalId":"goal_1771781904124_4","stepId":"goal_1771781904124_4_s1","stepAction":"gather_block","reason":"stalled at gather_block","nextNeed":"move to open area","elapsedMs":15076}
+{"t":1771781920828,"type":"craft_job_fail","item":"wooden_sword","count":1,"reason":"cancelled"}
+{"t":1771781920828,"type":"task_fail","taskId":7,"intent":"craftItem","reason":"stalled at gather_block","code":"task_stalled","nextNeed":"move to open area"}
+{"t":1771781921408,"type":"chat_in","from":"NoSafeSky","message":"bot inv","source":"chat"}
+{"t":1771781921409,"type":"inventory_debug","tableCount":0,"plankCount":0,"logCount":62,"cobbleCount":0,"sample":[{"name":"oak_log","count":62,"slot":36}]}
+{"t":1771782220911,"type":"chat_in","from":"NoSafeSky","message":"craft me a wooden sword","source":"chat"}
+{"t":1771782220912,"type":"intent_decision","from":"NoSafeSky","text":"craft me a wooden sword","intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"rules","confidence":0.92},"threshold":0.72}
+{"t":1771782222391,"type":"command_ack","taskId":8,"intent":"craftItem","latencyMs":0}
+{"t":1771782222391,"type":"task_start","taskId":8,"intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"rules","confidence":0.92,"goalId":"goal_1771782220913_5","constraints":{"timeoutSec":90,"maxDistance":48},"previewNeeds":[{"item":"planks","count":2},{"item":"stick","count":1},{"station":"crafting_table"}]}}
+{"t":1771782222392,"type":"task_progress","taskId":8,"intent":"craftItem","goalId":"goal_1771782220913_5","stepId":null,"stepAction":"craftItem","attempt":0,"gatherRingIndex":null,"elapsedMs":1,"msg":"task started"}
+{"t":1771782222392,"type":"craft_job_start","item":"wooden_sword","count":1}
+{"t":1771782222392,"type":"need_acquire_start","goalId":"goal_1771782220913_5","step":{"id":"goal_1771782220913_5_s1","action":"craft_recipe","args":{"item":"planks","count":2,"station":"inventory","processType":"craft","variantId":"craft:oak_planks:oak_logx1","outputItem":"oak_planks","ingredients":[{"name":"log","count":1}]},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782222393,"type":"step_progress","taskId":8,"goalId":"goal_1771782220913_5","stepId":"goal_1771782220913_5_s1","action":"craft_recipe","msg":"start craft_recipe"}
+{"t":1771782222393,"type":"reasoner_try","step":"craft_recipe","attempt":0}
+{"t":1771782222454,"type":"need_acquire_ok","goalId":"goal_1771782220913_5","step":"craft_recipe"}
+{"t":1771782222454,"type":"step_terminal","taskId":8,"goalId":"goal_1771782220913_5","stepId":"goal_1771782220913_5_s1","action":"craft_recipe","status":"success"}
+{"t":1771782222455,"type":"need_acquire_start","goalId":"goal_1771782220913_5","step":{"id":"goal_1771782220913_5_s2","action":"craft_recipe","args":{"item":"stick","count":1,"station":"inventory","processType":"craft","variantId":"craft:stick:acacia_planksx2","outputItem":"stick","ingredients":[{"name":"planks","count":2}]},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782222455,"type":"step_progress","taskId":8,"goalId":"goal_1771782220913_5","stepId":"goal_1771782220913_5_s2","action":"craft_recipe","msg":"start craft_recipe"}
+{"t":1771782222455,"type":"reasoner_try","step":"craft_recipe","attempt":0}
+{"t":1771782222457,"type":"recipe_choice_scored","item":"stick","variantId":"","score":0,"scoreBreakdown":{"equivalentMissing":0,"exactMissing":0,"bambooPenalty":0},"ingredients":[]}
+{"t":1771782222507,"type":"need_acquire_ok","goalId":"goal_1771782220913_5","step":"craft_recipe"}
+{"t":1771782222507,"type":"step_terminal","taskId":8,"goalId":"goal_1771782220913_5","stepId":"goal_1771782220913_5_s2","action":"craft_recipe","status":"success"}
+{"t":1771782222508,"type":"need_acquire_start","goalId":"goal_1771782220913_5","step":{"id":"goal_1771782220913_5_s3","action":"ensure_station","args":{"station":"crafting_table"},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782222508,"type":"station_step_start","goalId":"goal_1771782220913_5","stepId":"goal_1771782220913_5_s3","action":"ensure_station","station":"crafting_table"}
+{"t":1771782222508,"type":"step_progress","taskId":8,"goalId":"goal_1771782220913_5","stepId":"goal_1771782220913_5_s3","action":"ensure_station","msg":"start ensure_station"}
+{"t":1771782222509,"type":"reasoner_try","step":"ensure_station","attempt":0}
+{"t":1771782222514,"type":"craft_step_ok","action":"ensure_table","reused":true}
+{"t":1771782222514,"type":"station_step_ok","goalId":"goal_1771782220913_5","stepId":"goal_1771782220913_5_s3","action":"ensure_station","station":"crafting_table"}
+{"t":1771782222514,"type":"need_acquire_ok","goalId":"goal_1771782220913_5","step":"ensure_station"}
+{"t":1771782222515,"type":"step_terminal","taskId":8,"goalId":"goal_1771782220913_5","stepId":"goal_1771782220913_5_s3","action":"ensure_station","status":"success"}
+{"t":1771782222515,"type":"need_acquire_start","goalId":"goal_1771782220913_5","step":{"id":"goal_1771782220913_5_s4","action":"craft_recipe","args":{"item":"wooden_sword","count":1,"station":"crafting_table","processType":"craft","variantId":"craft:wooden_sword:acacia_planksx2+stickx1","outputItem":"wooden_sword","ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}]},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782222515,"type":"step_progress","taskId":8,"goalId":"goal_1771782220913_5","stepId":"goal_1771782220913_5_s4","action":"craft_recipe","msg":"start craft_recipe"}
+{"t":1771782222516,"type":"reasoner_try","step":"craft_recipe","attempt":0}
+{"t":1771782222520,"type":"craft_step_ok","action":"ensure_table","reused":true}
+{"t":1771782222522,"type":"recipe_choice_scored","item":"wooden_sword","variantId":"","score":0,"scoreBreakdown":{"equivalentMissing":0,"exactMissing":0,"bambooPenalty":0},"ingredients":[]}
+{"t":1771782222819,"type":"need_acquire_ok","goalId":"goal_1771782220913_5","step":"craft_recipe"}
+{"t":1771782222820,"type":"step_terminal","taskId":8,"goalId":"goal_1771782220913_5","stepId":"goal_1771782220913_5_s4","action":"craft_recipe","status":"success"}
+{"t":1771782222820,"type":"craft_job_success","item":"wooden_sword","count":1}
+{"t":1771782222820,"type":"task_success","taskId":8,"intent":"craftItem"}
+{"t":1771782241309,"type":"chat_in","from":"NoSafeSky","message":"teleported 12__12 to nosafesky]","source":"chat"}
+{"t":1771782241310,"type":"intent_decision","from":"NoSafeSky","text":"teleported 12__12 to nosafesky]","intent":{"type":"none","source":"rules","confidence":0},"threshold":0.72}
+{"t":1771782249360,"type":"chat_reply","to":"NoSafeSky","reply":"Player 12__12 has been teleported to NoSafeSky.","source":"llm"}
+{"t":1771782251944,"type":"chat_in","from":"NoSafeSky","message":"craft me a wooden sword","source":"chat"}
+{"t":1771782251944,"type":"intent_decision","from":"NoSafeSky","text":"craft me a wooden sword","intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"rules","confidence":0.92},"threshold":0.72}
+{"t":1771782253422,"type":"command_ack","taskId":9,"intent":"craftItem","latencyMs":1}
+{"t":1771782253422,"type":"task_start","taskId":9,"intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"rules","confidence":0.92,"goalId":"goal_1771782251945_6","constraints":{"timeoutSec":90,"maxDistance":48},"previewNeeds":[{"item":"planks","count":2},{"item":"stick","count":1},{"station":"crafting_table"}]}}
+{"t":1771782253423,"type":"task_progress","taskId":9,"intent":"craftItem","goalId":"goal_1771782251945_6","stepId":null,"stepAction":"craftItem","attempt":0,"gatherRingIndex":null,"elapsedMs":1,"msg":"task started"}
+{"t":1771782253423,"type":"craft_job_start","item":"wooden_sword","count":1}
+{"t":1771782253424,"type":"need_acquire_start","goalId":"goal_1771782251945_6","step":{"id":"goal_1771782251945_6_s1","action":"gather_block","args":{"item":"log","count":1,"blockNames":["oak_log","spruce_log","birch_log","jungle_log","acacia_log","dark_oak_log","mangrove_log","cherry_log","crimson_stem","warped_stem"],"preferredBlocks":["oak_log","spruce_log","birch_log","jungle_log","acacia_log","dark_oak_log","mangrove_log","cherry_log","crimson_stem","warped_stem"],"toolRequirement":null},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782253424,"type":"step_progress","taskId":9,"goalId":"goal_1771782251945_6","stepId":"goal_1771782251945_6_s1","action":"gather_block","msg":"start gather_block"}
+{"t":1771782253425,"type":"reasoner_try","step":"gather_block","attempt":0}
+{"t":1771782256508,"type":"task_progress","taskId":9,"intent":"craftItem","goalId":"goal_1771782251945_6","stepId":"goal_1771782251945_6_s1","stepAction":"gather_block","attempt":1,"gatherRingIndex":1,"elapsedMs":3086,"msg":"gather log r24 try 1/2"}
+{"t":1771782259591,"type":"task_progress","taskId":9,"intent":"craftItem","goalId":"goal_1771782251945_6","stepId":"goal_1771782251945_6_s1","stepAction":"gather_block","attempt":1,"gatherRingIndex":1,"elapsedMs":6169,"msg":"gather log r24 try 1/2"}
+{"t":1771782262653,"type":"task_progress","taskId":9,"intent":"craftItem","goalId":"goal_1771782251945_6","stepId":"goal_1771782251945_6_s1","stepAction":"gather_block","attempt":1,"gatherRingIndex":1,"elapsedMs":9231,"msg":"gather log r24 try 1/2"}
+{"t":1771782265675,"type":"task_progress","taskId":9,"intent":"craftItem","goalId":"goal_1771782251945_6","stepId":"goal_1771782251945_6_s1","stepAction":"gather_block","attempt":1,"gatherRingIndex":1,"elapsedMs":12253,"msg":"gather log r24 try 1/2"}
+{"t":1771782266439,"type":"reasoner_reject_summary","total":1,"buckets":[{"key":"findRepositionCandidate:cannot_stand","count":1}]}
+{"t":1771782266447,"type":"reasoner_candidate_pick","step":"gather_block_move","x":-121,"y":80,"z":-306,"score":47.06755848065017}
+{"t":1771782268480,"type":"task_stall_fail","taskId":9,"intent":"craftItem","goalId":"goal_1771782251945_6","stepId":"goal_1771782251945_6_s1","stepAction":"gather_block","reason":"stalled at gather_block","nextNeed":"move to open area","elapsedMs":15058}
+{"t":1771782268963,"type":"reasoner_reposition","step":"gather_block_move","moved":false,"x":-121,"y":80,"z":-306}
+{"t":1771782268964,"type":"craft_job_fail","item":"wooden_sword","count":1,"reason":"cancelled"}
+{"t":1771782268964,"type":"task_fail","taskId":9,"intent":"craftItem","reason":"stalled at gather_block","code":"task_stalled","nextNeed":"move to open area"}
+{"t":1771782592708,"type":"spawn"}
+{"t":1771782592712,"type":"autonomy_disabled"}
+{"t":1771782603020,"type":"chat_in","from":"NoSafeSky","message":"craft me a wooden sword","source":"chat"}
+{"t":1771782603022,"type":"intent_decision","from":"NoSafeSky","text":"craft me a wooden sword","intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"rules","confidence":0.92},"threshold":0.72}
+{"t":1771782604487,"type":"command_ack","taskId":1,"intent":"craftItem","latencyMs":1}
+{"t":1771782604489,"type":"task_start","taskId":1,"intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"rules","confidence":0.92,"goalId":"goal_1771782603023_1","constraints":{"timeoutSec":90,"maxDistance":48},"previewNeeds":[{"item":"planks","count":2},{"item":"stick","count":1},{"station":"crafting_table"}]}}
+{"t":1771782604489,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":null,"stepAction":"craftItem","attempt":0,"gatherRingIndex":null,"elapsedMs":1,"msg":"task started"}
+{"t":1771782604491,"type":"craft_job_start","item":"wooden_sword","count":1}
+{"t":1771782604492,"type":"need_acquire_start","goalId":"goal_1771782603023_1","step":{"id":"goal_1771782603023_1_s1","action":"gather_block","args":{"item":"log","count":1,"blockNames":["oak_log","spruce_log","birch_log","jungle_log","acacia_log","dark_oak_log","mangrove_log","cherry_log","crimson_stem","warped_stem"],"preferredBlocks":["oak_log","spruce_log","birch_log","jungle_log","acacia_log","dark_oak_log","mangrove_log","cherry_log","crimson_stem","warped_stem"],"toolRequirement":null},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782604492,"type":"step_progress","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","action":"gather_block","msg":"start gather_block"}
+{"t":1771782604493,"type":"reasoner_try","step":"gather_block","attempt":0}
+{"t":1771782607556,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","stepAction":"move","attempt":1,"gatherRingIndex":1,"elapsedMs":3068,"msg":"moving to target (1.5m)"}
+{"t":1771782610654,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":6166,"msg":"moving to target (1.3m)"}
+{"t":1771782610814,"type":"need_acquire_ok","goalId":"goal_1771782603023_1","step":"gather_block"}
+{"t":1771782610815,"type":"step_terminal","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","action":"gather_block","status":"success"}
+{"t":1771782610815,"type":"need_acquire_start","goalId":"goal_1771782603023_1","step":{"id":"goal_1771782603023_1_s2","action":"craft_recipe","args":{"item":"planks","count":2,"station":"inventory","processType":"craft","variantId":"craft:acacia_planks:acacia_logx1","outputItem":"acacia_planks","ingredients":[{"name":"log","count":1}]},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782610815,"type":"step_progress","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","action":"craft_recipe","msg":"start craft_recipe"}
+{"t":1771782610816,"type":"reasoner_try","step":"craft_recipe","attempt":0}
+{"t":1771782610941,"type":"need_acquire_ok","goalId":"goal_1771782603023_1","step":"craft_recipe"}
+{"t":1771782610942,"type":"step_terminal","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","action":"craft_recipe","status":"success"}
+{"t":1771782610942,"type":"need_acquire_start","goalId":"goal_1771782603023_1","step":{"id":"goal_1771782603023_1_s3","action":"craft_recipe","args":{"item":"stick","count":1,"station":"inventory","processType":"craft","variantId":"craft:stick:acacia_planksx2","outputItem":"stick","ingredients":[{"name":"planks","count":2}]},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782610942,"type":"step_progress","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s3","action":"craft_recipe","msg":"start craft_recipe"}
+{"t":1771782610942,"type":"reasoner_try","step":"craft_recipe","attempt":0}
+{"t":1771782610944,"type":"recipe_choice_scored","item":"stick","variantId":"","score":0,"scoreBreakdown":{"equivalentMissing":0,"exactMissing":0,"bambooPenalty":0},"ingredients":[]}
+{"t":1771782611057,"type":"need_acquire_ok","goalId":"goal_1771782603023_1","step":"craft_recipe"}
+{"t":1771782611058,"type":"step_terminal","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s3","action":"craft_recipe","status":"success"}
+{"t":1771782611058,"type":"need_acquire_start","goalId":"goal_1771782603023_1","step":{"id":"goal_1771782603023_1_s4","action":"ensure_station","args":{"station":"crafting_table"},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782611058,"type":"station_step_start","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s4","action":"ensure_station","station":"crafting_table"}
+{"t":1771782611059,"type":"step_progress","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s4","action":"ensure_station","msg":"start ensure_station"}
+{"t":1771782611059,"type":"reasoner_try","step":"ensure_station","attempt":0}
+{"t":1771782611068,"type":"craft_step_ok","action":"ensure_table","reused":true}
+{"t":1771782611069,"type":"station_step_ok","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s4","action":"ensure_station","station":"crafting_table"}
+{"t":1771782611069,"type":"need_acquire_ok","goalId":"goal_1771782603023_1","step":"ensure_station"}
+{"t":1771782611070,"type":"step_terminal","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s4","action":"ensure_station","status":"success"}
+{"t":1771782611070,"type":"need_acquire_start","goalId":"goal_1771782603023_1","step":{"id":"goal_1771782603023_1_s5","action":"craft_recipe","args":{"item":"wooden_sword","count":1,"station":"crafting_table","processType":"craft","variantId":"craft:wooden_sword:acacia_planksx2+stickx1","outputItem":"wooden_sword","ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}]},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782611071,"type":"step_progress","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s5","action":"craft_recipe","msg":"start craft_recipe"}
+{"t":1771782611071,"type":"reasoner_try","step":"craft_recipe","attempt":0}
+{"t":1771782611079,"type":"craft_step_ok","action":"ensure_table","reused":true}
+{"t":1771782611080,"type":"recipe_choice_scored","item":"wooden_sword","variantId":"","score":0,"scoreBreakdown":{"equivalentMissing":0,"exactMissing":0,"bambooPenalty":0},"ingredients":[]}
+{"t":1771782613716,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s5","stepAction":"craft_recipe","attempt":2,"gatherRingIndex":1,"elapsedMs":9228,"msg":"step craft_recipe"}
+{"t":1771782616803,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s5","stepAction":"craft_recipe","attempt":2,"gatherRingIndex":1,"elapsedMs":12315,"msg":"step craft_recipe"}
+{"t":1771782619897,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s5","stepAction":"craft_recipe","attempt":2,"gatherRingIndex":1,"elapsedMs":15409,"msg":"step craft_recipe"}
+{"t":1771782623002,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s5","stepAction":"craft_recipe","attempt":2,"gatherRingIndex":1,"elapsedMs":18514,"msg":"step craft_recipe"}
+{"t":1771782623080,"type":"step_timeout","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s5","action":"craft_recipe"}
+{"t":1771782623081,"type":"need_acquire_fail","goalId":"goal_1771782603023_1","step":{"id":"goal_1771782603023_1_s5","action":"craft_recipe","args":{"item":"wooden_sword","count":1,"station":"crafting_table","processType":"craft","variantId":"craft:wooden_sword:acacia_planksx2+stickx1","outputItem":"wooden_sword","ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}]},"retryPolicy":{},"timeoutMs":12000},"code":"step_timeout","reason":"step timeout: craft_recipe","nextNeed":"move to open area","meta":null}
+{"t":1771782623081,"type":"step_terminal","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s5","action":"craft_recipe","status":"fail","code":"step_timeout","reason":"step timeout: craft_recipe","nextNeed":"move to open area","meta":null}
+{"t":1771782623081,"type":"planner_budget_start","goalId":"goal_1771782603023_1","item":"wooden_sword","count":1,"timeoutMs":8000,"maxNodes":1200,"beamWidth":24,"variantCap":32}
+{"t":1771782623081,"type":"goal_plan_start","goalId":"goal_1771782603023_1","domain":"craft","item":"wooden_sword","count":1}
+{"t":1771782624490,"type":"dependency_expand","item":"wooden_sword","count":1,"depth":0}
+{"t":1771782624491,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"acacia_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624491,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:acacia_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"acacia_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624492,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"bamboo_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624492,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:bamboo_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"bamboo_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624492,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"birch_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624493,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:birch_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"birch_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624493,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"cherry_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624493,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:cherry_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"cherry_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624494,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"crimson_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624494,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:crimson_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"crimson_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624495,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"dark_oak_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624495,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:dark_oak_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"dark_oak_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624495,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"jungle_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624496,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:jungle_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"jungle_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624496,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"mangrove_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624496,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:mangrove_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"mangrove_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624497,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"oak_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624497,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:oak_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-24,"scoreBreakdown":{"exactInventoryBonus":-8,"familyInventoryBonus":-6,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"oak_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624498,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"spruce_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624498,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:spruce_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"spruce_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624498,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"stick","count":1},{"name":"warped_planks","count":2}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624499,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:stickx1+warped_planksx2","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"stick","count":1},{"name":"warped_planks","count":2}]}
+{"t":1771782624499,"type":"dependency_choice","item":"wooden_sword","count":1,"optionIndex":0,"provider":"craft_recipe","station":"crafting_table","processType":"craft"}
+{"t":1771782624499,"type":"recipe_variant_choice","item":"wooden_sword","variantId":"craft:wooden_sword:oak_planksx2+stickx1","processType":"craft","station":"crafting_table","compatibilityScore":-24,"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782624500,"type":"equiv_inventory_consume","item":"planks","requested":2,"consumed":[{"item":"oak_planks","count":2}]}
+{"t":1771782624500,"type":"equiv_need_resolved","item":"planks","count":2,"consumed":[{"item":"oak_planks","count":2}]}
+{"t":1771782624500,"type":"need_satisfied_inventory","item":"planks","count":2}
+{"t":1771782624501,"type":"equiv_inventory_consume","item":"stick","requested":1,"consumed":[{"item":"stick","count":1}]}
+{"t":1771782624501,"type":"need_satisfied_inventory","item":"stick","count":1}
+{"t":1771782624501,"type":"equiv_inventory_consume","item":"wooden_sword","requested":1,"consumed":[{"item":"wooden_sword","count":1}]}
+{"t":1771782624502,"type":"goal_plan_built","goalId":"goal_1771782603023_1","domain":"craft","item":"wooden_sword","count":1,"stepCount":2,"needs":[{"item":"planks","count":2},{"item":"stick","count":1},{"station":"crafting_table"}],"budgetStats":{"elapsedMs":1421,"expandedNodes":3,"maxNodes":1200,"timeoutMs":8000,"beamWidth":24,"variantCap":32}}
+{"t":1771782624502,"type":"step_replan","goalId":"goal_1771782603023_1","replan":1}
+{"t":1771782624502,"type":"need_acquire_start","goalId":"goal_1771782603023_1","step":{"id":"goal_1771782603023_1_s1","action":"ensure_station","args":{"station":"crafting_table"},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782624503,"type":"station_step_start","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","action":"ensure_station","station":"crafting_table"}
+{"t":1771782624503,"type":"step_progress","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","action":"ensure_station","msg":"start ensure_station"}
+{"t":1771782624504,"type":"reasoner_try","step":"ensure_station","attempt":0}
+{"t":1771782624506,"type":"craft_step_ok","action":"ensure_table","reused":true}
+{"t":1771782624507,"type":"station_step_ok","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","action":"ensure_station","station":"crafting_table"}
+{"t":1771782624507,"type":"need_acquire_ok","goalId":"goal_1771782603023_1","step":"ensure_station"}
+{"t":1771782624508,"type":"step_terminal","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","action":"ensure_station","status":"success"}
+{"t":1771782624508,"type":"need_acquire_start","goalId":"goal_1771782603023_1","step":{"id":"goal_1771782603023_1_s2","action":"craft_recipe","args":{"item":"wooden_sword","count":1,"station":"crafting_table","processType":"craft","variantId":"craft:wooden_sword:oak_planksx2+stickx1","outputItem":"wooden_sword","ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}]},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782624508,"type":"step_progress","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","action":"craft_recipe","msg":"start craft_recipe"}
+{"t":1771782624509,"type":"reasoner_try","step":"craft_recipe","attempt":0}
+{"t":1771782624513,"type":"craft_step_ok","action":"ensure_table","reused":true}
+{"t":1771782624514,"type":"recipe_choice_scored","item":"wooden_sword","variantId":"","score":0,"scoreBreakdown":{"equivalentMissing":0,"exactMissing":0,"bambooPenalty":0},"ingredients":[]}
+{"t":1771782626053,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","stepAction":"craft_recipe","attempt":2,"gatherRingIndex":1,"elapsedMs":21565,"msg":"step craft_recipe"}
+{"t":1771782629112,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","stepAction":"craft_recipe","attempt":2,"gatherRingIndex":1,"elapsedMs":24624,"msg":"step craft_recipe"}
+{"t":1771782631093,"type":"reasoner_reject_summary","total":1,"buckets":[{"key":"findRepositionCandidate:cannot_stand","count":1}]}
+{"t":1771782631098,"type":"reasoner_candidate_pick","step":"craft_recipe","x":-119,"y":80,"z":-309,"score":45.982332240086066}
+{"t":1771782632180,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":27692,"msg":"correcting position (4.3m)"}
+{"t":1771782635239,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":30751,"msg":"correcting position (1.7m)"}
+{"t":1771782636518,"type":"step_timeout","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","action":"craft_recipe"}
+{"t":1771782636519,"type":"need_acquire_fail","goalId":"goal_1771782603023_1","step":{"id":"goal_1771782603023_1_s2","action":"craft_recipe","args":{"item":"wooden_sword","count":1,"station":"crafting_table","processType":"craft","variantId":"craft:wooden_sword:oak_planksx2+stickx1","outputItem":"wooden_sword","ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}]},"retryPolicy":{},"timeoutMs":12000},"code":"step_timeout","reason":"step timeout: craft_recipe","nextNeed":"move to open area","meta":null}
+{"t":1771782636519,"type":"step_terminal","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","action":"craft_recipe","status":"fail","code":"step_timeout","reason":"step timeout: craft_recipe","nextNeed":"move to open area","meta":null}
+{"t":1771782636519,"type":"planner_budget_start","goalId":"goal_1771782603023_1","item":"wooden_sword","count":1,"timeoutMs":8000,"maxNodes":1200,"beamWidth":24,"variantCap":32}
+{"t":1771782636520,"type":"goal_plan_start","goalId":"goal_1771782603023_1","domain":"craft","item":"wooden_sword","count":1}
+{"t":1771782637887,"type":"dependency_expand","item":"wooden_sword","count":1,"depth":0}
+{"t":1771782637888,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"acacia_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637888,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:acacia_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"acacia_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637888,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"bamboo_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637889,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:bamboo_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"bamboo_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637889,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"birch_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637889,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:birch_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"birch_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637890,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"cherry_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637890,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:cherry_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"cherry_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637890,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"crimson_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637891,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:crimson_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"crimson_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637891,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"dark_oak_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637892,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:dark_oak_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"dark_oak_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637892,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"jungle_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637892,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:jungle_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"jungle_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637893,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"mangrove_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637893,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:mangrove_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"mangrove_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637894,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"oak_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637894,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:oak_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-24,"scoreBreakdown":{"exactInventoryBonus":-8,"familyInventoryBonus":-6,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"oak_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637894,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"spruce_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637895,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:spruce_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"spruce_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637895,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"stick","count":1},{"name":"warped_planks","count":2}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637895,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:stickx1+warped_planksx2","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"stick","count":1},{"name":"warped_planks","count":2}]}
+{"t":1771782637896,"type":"dependency_choice","item":"wooden_sword","count":1,"optionIndex":0,"provider":"craft_recipe","station":"crafting_table","processType":"craft"}
+{"t":1771782637896,"type":"recipe_variant_choice","item":"wooden_sword","variantId":"craft:wooden_sword:oak_planksx2+stickx1","processType":"craft","station":"crafting_table","compatibilityScore":-24,"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782637896,"type":"equiv_inventory_consume","item":"planks","requested":2,"consumed":[{"item":"oak_planks","count":2}]}
+{"t":1771782637897,"type":"equiv_need_resolved","item":"planks","count":2,"consumed":[{"item":"oak_planks","count":2}]}
+{"t":1771782637897,"type":"need_satisfied_inventory","item":"planks","count":2}
+{"t":1771782637897,"type":"equiv_inventory_consume","item":"stick","requested":1,"consumed":[{"item":"stick","count":1}]}
+{"t":1771782637898,"type":"need_satisfied_inventory","item":"stick","count":1}
+{"t":1771782637898,"type":"equiv_inventory_consume","item":"wooden_sword","requested":1,"consumed":[{"item":"wooden_sword","count":1}]}
+{"t":1771782637898,"type":"goal_plan_built","goalId":"goal_1771782603023_1","domain":"craft","item":"wooden_sword","count":1,"stepCount":2,"needs":[{"item":"planks","count":2},{"item":"stick","count":1},{"station":"crafting_table"}],"budgetStats":{"elapsedMs":1379,"expandedNodes":3,"maxNodes":1200,"timeoutMs":8000,"beamWidth":24,"variantCap":32}}
+{"t":1771782637898,"type":"step_replan","goalId":"goal_1771782603023_1","replan":2}
+{"t":1771782637899,"type":"need_acquire_start","goalId":"goal_1771782603023_1","step":{"id":"goal_1771782603023_1_s1","action":"ensure_station","args":{"station":"crafting_table"},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782637899,"type":"station_step_start","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","action":"ensure_station","station":"crafting_table"}
+{"t":1771782637899,"type":"step_progress","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","action":"ensure_station","msg":"start ensure_station"}
+{"t":1771782637900,"type":"reasoner_try","step":"ensure_station","attempt":0}
+{"t":1771782637904,"type":"craft_step_ok","action":"ensure_table","reused":true}
+{"t":1771782637904,"type":"station_step_ok","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","action":"ensure_station","station":"crafting_table"}
+{"t":1771782637904,"type":"need_acquire_ok","goalId":"goal_1771782603023_1","step":"ensure_station"}
+{"t":1771782637905,"type":"step_terminal","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","action":"ensure_station","status":"success"}
+{"t":1771782637905,"type":"need_acquire_start","goalId":"goal_1771782603023_1","step":{"id":"goal_1771782603023_1_s2","action":"craft_recipe","args":{"item":"wooden_sword","count":1,"station":"crafting_table","processType":"craft","variantId":"craft:wooden_sword:oak_planksx2+stickx1","outputItem":"wooden_sword","ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}]},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782637905,"type":"step_progress","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","action":"craft_recipe","msg":"start craft_recipe"}
+{"t":1771782637906,"type":"reasoner_try","step":"craft_recipe","attempt":0}
+{"t":1771782637910,"type":"craft_step_ok","action":"ensure_table","reused":true}
+{"t":1771782637912,"type":"recipe_choice_scored","item":"wooden_sword","variantId":"","score":0,"scoreBreakdown":{"equivalentMissing":0,"exactMissing":0,"bambooPenalty":0},"ingredients":[]}
+{"t":1771782638108,"type":"reasoner_reject_summary","total":115,"buckets":[{"key":"findRepositionCandidate:cannot_stand","count":115}]}
+{"t":1771782638113,"type":"reasoner_candidate_pick","step":"craft_recipe","x":-115,"y":80,"z":-308,"score":46.388885101740286}
+{"t":1771782638119,"type":"reasoner_candidate_pick","step":"craft_recipe","x":-115,"y":80,"z":-308,"score":46.388885101740286}
+{"t":1771782638266,"type":"reasoner_reposition","step":"craft_recipe","moved":true,"x":-115,"y":80,"z":-308}
+{"t":1771782638266,"type":"reasoner_reposition","step":"craft_recipe","moved":true,"x":-115,"y":80,"z":-308}
+{"t":1771782638267,"type":"reasoner_step_recover","step":"craft_recipe","attempt":0,"code":"path_blocked","reason":"craft failed for wooden_sword"}
+{"t":1771782638267,"type":"reasoner_try","step":"craft_recipe","attempt":1}
+{"t":1771782638271,"type":"craft_step_ok","action":"ensure_table","reused":true}
+{"t":1771782638272,"type":"reasoner_step_recover","step":"craft_recipe","attempt":0,"code":"path_blocked","reason":"craft failed for wooden_sword"}
+{"t":1771782638272,"type":"reasoner_try","step":"craft_recipe","attempt":1}
+{"t":1771782638276,"type":"craft_step_ok","action":"ensure_table","reused":true}
+{"t":1771782638278,"type":"recipe_choice_scored","item":"wooden_sword","variantId":"","score":0,"scoreBreakdown":{"equivalentMissing":0,"exactMissing":0,"bambooPenalty":0},"ingredients":[]}
+{"t":1771782638279,"type":"recipe_choice_scored","item":"wooden_sword","variantId":"","score":0,"scoreBreakdown":{"equivalentMissing":0,"exactMissing":0,"bambooPenalty":0},"ingredients":[]}
+{"t":1771782638419,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":33931,"msg":"correcting position (3.6m)"}
+{"t":1771782641499,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":37011,"msg":"correcting position (3.8m)"}
+{"t":1771782643502,"type":"reasoner_reposition","step":"craft_recipe","moved":false,"x":-119,"y":80,"z":-309}
+{"t":1771782643503,"type":"reasoner_step_giveup","step":"craft_recipe","attempt":0,"recoverable":true,"code":"path_blocked","reason":"craft failed for wooden_sword"}
+{"t":1771782644556,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":40068,"msg":"correcting position (3.8m)"}
+{"t":1771782646105,"type":"chat_in","from":"NoSafeSky","message":"bot inv","source":"chat"}
+{"t":1771782646106,"type":"inventory_debug","tableCount":0,"plankCount":2,"logCount":0,"cobbleCount":0,"sample":[{"name":"stick","count":4,"slot":10},{"name":"oak_planks","count":2,"slot":36}]}
+{"t":1771782647610,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":43122,"msg":"correcting position (3.8m)"}
+{"t":1771782649907,"type":"step_timeout","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","action":"craft_recipe"}
+{"t":1771782649907,"type":"need_acquire_fail","goalId":"goal_1771782603023_1","step":{"id":"goal_1771782603023_1_s2","action":"craft_recipe","args":{"item":"wooden_sword","count":1,"station":"crafting_table","processType":"craft","variantId":"craft:wooden_sword:oak_planksx2+stickx1","outputItem":"wooden_sword","ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}]},"retryPolicy":{},"timeoutMs":12000},"code":"step_timeout","reason":"step timeout: craft_recipe","nextNeed":"move to open area","meta":null}
+{"t":1771782649907,"type":"step_terminal","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","action":"craft_recipe","status":"fail","code":"step_timeout","reason":"step timeout: craft_recipe","nextNeed":"move to open area","meta":null}
+{"t":1771782649908,"type":"planner_budget_start","goalId":"goal_1771782603023_1","item":"wooden_sword","count":1,"timeoutMs":8000,"maxNodes":1200,"beamWidth":24,"variantCap":32}
+{"t":1771782649908,"type":"goal_plan_start","goalId":"goal_1771782603023_1","domain":"craft","item":"wooden_sword","count":1}
+{"t":1771782651257,"type":"dependency_expand","item":"wooden_sword","count":1,"depth":0}
+{"t":1771782651257,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"acacia_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651258,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:acacia_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"acacia_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651258,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"bamboo_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651259,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:bamboo_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"bamboo_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651259,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"birch_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651259,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:birch_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"birch_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651260,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"cherry_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651260,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:cherry_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"cherry_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651260,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"crimson_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651260,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:crimson_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"crimson_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651261,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"dark_oak_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651261,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:dark_oak_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"dark_oak_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651262,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"jungle_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651262,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:jungle_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"jungle_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651262,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"mangrove_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651262,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:mangrove_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"mangrove_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651262,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"oak_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651263,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:oak_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-24,"scoreBreakdown":{"exactInventoryBonus":-8,"familyInventoryBonus":-6,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"oak_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651263,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"spruce_planks","count":2},{"name":"stick","count":1}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651263,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:spruce_planksx2+stickx1","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"spruce_planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651264,"type":"recipe_family_normalized","item":"wooden_sword","from":[{"name":"stick","count":1},{"name":"warped_planks","count":2}],"to":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651264,"type":"recipe_choice_scored","item":"wooden_sword","outputItem":"wooden_sword","variantId":"craft:wooden_sword:stickx1+warped_planksx2","processType":"craft","station":"crafting_table","cost":34,"compatibilityScore":-2,"scoreBreakdown":{"familyInventoryBonus":-6,"speciesLockPenalty":14,"normalizedInventoryReady":-10},"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}],"rawIngredients":[{"name":"stick","count":1},{"name":"warped_planks","count":2}]}
+{"t":1771782651264,"type":"dependency_choice","item":"wooden_sword","count":1,"optionIndex":0,"provider":"craft_recipe","station":"crafting_table","processType":"craft"}
+{"t":1771782651265,"type":"recipe_variant_choice","item":"wooden_sword","variantId":"craft:wooden_sword:oak_planksx2+stickx1","processType":"craft","station":"crafting_table","compatibilityScore":-24,"ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}]}
+{"t":1771782651265,"type":"equiv_inventory_consume","item":"planks","requested":2,"consumed":[{"item":"oak_planks","count":2}]}
+{"t":1771782651265,"type":"equiv_need_resolved","item":"planks","count":2,"consumed":[{"item":"oak_planks","count":2}]}
+{"t":1771782651266,"type":"need_satisfied_inventory","item":"planks","count":2}
+{"t":1771782651266,"type":"equiv_inventory_consume","item":"stick","requested":1,"consumed":[{"item":"stick","count":1}]}
+{"t":1771782651266,"type":"need_satisfied_inventory","item":"stick","count":1}
+{"t":1771782651267,"type":"equiv_inventory_consume","item":"wooden_sword","requested":1,"consumed":[{"item":"wooden_sword","count":1}]}
+{"t":1771782651267,"type":"goal_plan_built","goalId":"goal_1771782603023_1","domain":"craft","item":"wooden_sword","count":1,"stepCount":2,"needs":[{"item":"planks","count":2},{"item":"stick","count":1},{"station":"crafting_table"}],"budgetStats":{"elapsedMs":1359,"expandedNodes":3,"maxNodes":1200,"timeoutMs":8000,"beamWidth":24,"variantCap":32}}
+{"t":1771782651267,"type":"step_replan","goalId":"goal_1771782603023_1","replan":3}
+{"t":1771782651268,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","stepAction":"ensure_station","attempt":2,"gatherRingIndex":1,"elapsedMs":46780,"msg":"step ensure_station"}
+{"t":1771782651268,"type":"need_acquire_start","goalId":"goal_1771782603023_1","step":{"id":"goal_1771782603023_1_s1","action":"ensure_station","args":{"station":"crafting_table"},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782651268,"type":"station_step_start","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","action":"ensure_station","station":"crafting_table"}
+{"t":1771782651268,"type":"step_progress","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","action":"ensure_station","msg":"start ensure_station"}
+{"t":1771782651269,"type":"reasoner_try","step":"ensure_station","attempt":0}
+{"t":1771782651273,"type":"craft_step_ok","action":"ensure_table","reused":true}
+{"t":1771782651274,"type":"station_step_ok","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","action":"ensure_station","station":"crafting_table"}
+{"t":1771782651274,"type":"need_acquire_ok","goalId":"goal_1771782603023_1","step":"ensure_station"}
+{"t":1771782651275,"type":"step_terminal","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s1","action":"ensure_station","status":"success"}
+{"t":1771782651275,"type":"need_acquire_start","goalId":"goal_1771782603023_1","step":{"id":"goal_1771782603023_1_s2","action":"craft_recipe","args":{"item":"wooden_sword","count":1,"station":"crafting_table","processType":"craft","variantId":"craft:wooden_sword:oak_planksx2+stickx1","outputItem":"wooden_sword","ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}]},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782651275,"type":"step_progress","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","action":"craft_recipe","msg":"start craft_recipe"}
+{"t":1771782651276,"type":"reasoner_try","step":"craft_recipe","attempt":0}
+{"t":1771782651279,"type":"craft_step_ok","action":"ensure_table","reused":true}
+{"t":1771782651280,"type":"recipe_choice_scored","item":"wooden_sword","variantId":"","score":0,"scoreBreakdown":{"equivalentMissing":0,"exactMissing":0,"bambooPenalty":0},"ingredients":[]}
+{"t":1771782651281,"type":"reasoner_reject_summary","total":222,"buckets":[{"key":"findRepositionCandidate:cannot_stand","count":222}]}
+{"t":1771782651286,"type":"reasoner_candidate_pick","step":"craft_recipe","x":-116,"y":80,"z":-312,"score":46.08646537932428}
+{"t":1771782654353,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":49865,"msg":"correcting position (1.6m)"}
+{"t":1771782657404,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":52916,"msg":"correcting position (1.6m)"}
+{"t":1771782658283,"type":"reasoner_reject_summary","total":100,"buckets":[{"key":"findRepositionCandidate:cannot_stand","count":100}]}
+{"t":1771782658288,"type":"reasoner_candidate_pick","step":"craft_recipe","x":-116,"y":80,"z":-315,"score":46.00000192378934}
+{"t":1771782658293,"type":"reasoner_candidate_pick","step":"craft_recipe","x":-116,"y":80,"z":-315,"score":46.00000192378934}
+{"t":1771782658762,"type":"reasoner_reposition","step":"craft_recipe","moved":true,"x":-116,"y":80,"z":-312}
+{"t":1771782658763,"type":"reasoner_step_recover","step":"craft_recipe","attempt":0,"code":"path_blocked","reason":"craft failed for wooden_sword"}
+{"t":1771782658763,"type":"reasoner_try","step":"craft_recipe","attempt":1}
+{"t":1771782658768,"type":"craft_step_ok","action":"ensure_table","reused":true}
+{"t":1771782658769,"type":"reasoner_step_giveup","step":"craft_recipe","attempt":1,"recoverable":false,"code":"recipe_unavailable","reason":"recipe unavailable for wooden_sword"}
+{"t":1771782658769,"type":"need_acquire_fail","goalId":"goal_1771782603023_1","step":{"id":"goal_1771782603023_1_s2","action":"craft_recipe","args":{"item":"wooden_sword","count":1,"station":"crafting_table","processType":"craft","variantId":"craft:wooden_sword:oak_planksx2+stickx1","outputItem":"wooden_sword","ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}]},"retryPolicy":{},"timeoutMs":12000},"code":"recipe_unavailable","reason":"recipe unavailable for wooden_sword","nextNeed":"required ingredients or station","meta":null}
+{"t":1771782658770,"type":"step_terminal","taskId":1,"goalId":"goal_1771782603023_1","stepId":"goal_1771782603023_1_s2","action":"craft_recipe","status":"fail","code":"recipe_unavailable","reason":"recipe unavailable for wooden_sword","nextNeed":"required ingredients or station","meta":null}
+{"t":1771782658770,"type":"craft_job_fail","item":"wooden_sword","count":1,"reason":"recipe unavailable for wooden_sword","nextNeed":"required ingredients or station","code":"recipe_unavailable"}
+{"t":1771782658770,"type":"task_fail","taskId":1,"intent":"craftItem","reason":"craft wooden_sword: recipe unavailable for wooden_sword (next: required ingredients or station)","code":"recipe_unavailable","nextNeed":"required ingredients or station"}
+{"t":1771782668575,"type":"chat_in","from":"NoSafeSky","message":"bot inv","source":"chat"}
+{"t":1771782668576,"type":"inventory_debug","tableCount":0,"plankCount":0,"logCount":0,"cobbleCount":0,"sample":[{"name":"stick","count":4,"slot":10}]}
+{"t":1771782670447,"type":"reasoner_reposition","step":"craft_recipe","moved":false,"x":-116,"y":80,"z":-315}
+{"t":1771782670448,"type":"reasoner_reposition","step":"craft_recipe","moved":false,"x":-116,"y":80,"z":-315}
+{"t":1771782670448,"type":"reasoner_step_giveup","step":"craft_recipe","attempt":1,"recoverable":true,"code":"path_blocked","reason":"craft failed for wooden_sword"}
+{"t":1771782670448,"type":"reasoner_step_giveup","step":"craft_recipe","attempt":1,"recoverable":true,"code":"path_blocked","reason":"craft failed for wooden_sword"}
+{"t":1771782690268,"type":"chat_in","from":"NoSafeSky","message":"bot inv","source":"chat"}
+{"t":1771782690270,"type":"inventory_debug","tableCount":0,"plankCount":0,"logCount":0,"cobbleCount":0,"sample":[{"name":"stick","count":4,"slot":10}]}
+{"t":1771782714671,"type":"chat_in","from":"NoSafeSky","message":"craft me a wooden sword","source":"chat"}
+{"t":1771782714672,"type":"intent_decision","from":"NoSafeSky","text":"craft me a wooden sword","intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"rules","confidence":0.92},"threshold":0.72}
+{"t":1771782716052,"type":"command_ack","taskId":2,"intent":"craftItem","latencyMs":0}
+{"t":1771782716053,"type":"task_start","taskId":2,"intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"rules","confidence":0.92,"goalId":"goal_1771782714672_2","constraints":{"timeoutSec":90,"maxDistance":48},"previewNeeds":[{"item":"planks","count":2},{"item":"stick","count":1},{"station":"crafting_table"}]}}
+{"t":1771782716054,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":null,"stepAction":"craftItem","attempt":0,"gatherRingIndex":null,"elapsedMs":1,"msg":"task started"}
+{"t":1771782716054,"type":"craft_job_start","item":"wooden_sword","count":1}
+{"t":1771782716054,"type":"need_acquire_start","goalId":"goal_1771782714672_2","step":{"id":"goal_1771782714672_2_s1","action":"gather_block","args":{"item":"log","count":1,"blockNames":["oak_log","spruce_log","birch_log","jungle_log","acacia_log","dark_oak_log","mangrove_log","cherry_log","crimson_stem","warped_stem"],"preferredBlocks":["oak_log","spruce_log","birch_log","jungle_log","acacia_log","dark_oak_log","mangrove_log","cherry_log","crimson_stem","warped_stem"],"toolRequirement":null},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782716055,"type":"step_progress","taskId":2,"goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","action":"gather_block","msg":"start gather_block"}
+{"t":1771782716055,"type":"reasoner_try","step":"gather_block","attempt":0}
+{"t":1771782719104,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":1,"gatherRingIndex":1,"elapsedMs":3051,"msg":"moving to target (9.2m)"}
+{"t":1771782722157,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":6103,"msg":"moving to target (2.5m)"}
+{"t":1771782725388,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":1,"gatherRingIndex":2,"elapsedMs":9335,"msg":"moving to target (22.6m)"}
+{"t":1771782728486,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":1,"gatherRingIndex":2,"elapsedMs":12433,"msg":"moving to target (3.2m)"}
+{"t":1771782731603,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":1,"gatherRingIndex":2,"elapsedMs":15550,"msg":"moving to target (3.2m)"}
+{"t":1771782734655,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":2,"elapsedMs":18602,"msg":"moving to target (2.0m)"}
+{"t":1771782737705,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":2,"elapsedMs":21652,"msg":"moving to target (2.0m)"}
+{"t":1771782740736,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":2,"elapsedMs":24683,"msg":"moving to target (2.0m)"}
+{"t":1771782743835,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":2,"elapsedMs":27782,"msg":"moving to target (2.0m)"}
+{"t":1771782744536,"type":"reasoner_reject_summary","total":208,"buckets":[{"key":"findRepositionCandidate:cannot_stand","count":208}]}
+{"t":1771782744540,"type":"reasoner_candidate_pick","step":"gather_block_move","x":-138,"y":75,"z":-290,"score":47.292954458502635}
+{"t":1771782746929,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":2,"elapsedMs":30876,"msg":"moving to target (1.7m)"}
+{"t":1771782750032,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":2,"elapsedMs":33979,"msg":"moving to target (1.7m)"}
+{"t":1771782753103,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":2,"elapsedMs":37050,"msg":"moving to target (1.7m)"}
+{"t":1771782756183,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":2,"elapsedMs":40130,"msg":"moving to target (1.7m)"}
+{"t":1771782756664,"type":"reasoner_reposition","step":"gather_block_move","moved":false,"x":-138,"y":75,"z":-290}
+{"t":1771782759252,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":1,"gatherRingIndex":3,"elapsedMs":43199,"msg":"moving to target (2.1m)"}
+{"t":1771782762328,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":3,"elapsedMs":46275,"msg":"moving to target (2.5m)"}
+{"t":1771782765420,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":3,"elapsedMs":49367,"msg":"moving to target (2.1m)"}
+{"t":1771782768471,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":3,"elapsedMs":52418,"msg":"moving to target (2.1m)"}
+{"t":1771782771567,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":3,"elapsedMs":55514,"msg":"moving to target (2.1m)"}
+{"t":1771782772515,"type":"chat_in","from":"NoSafeSky","message":"bot inv","source":"chat"}
+{"t":1771782772516,"type":"inventory_debug","tableCount":0,"plankCount":0,"logCount":5,"cobbleCount":0,"sample":[{"name":"stick","count":4,"slot":10},{"name":"oak_log","count":5,"slot":37}]}
+{"t":1771782773304,"type":"reasoner_reject_summary","total":173,"buckets":[{"key":"findRepositionCandidate:cannot_stand","count":173}]}
+{"t":1771782773308,"type":"reasoner_candidate_pick","step":"gather_block_move","x":-131,"y":75,"z":-292,"score":46.50367788659381}
+{"t":1771782774292,"type":"reasoner_reposition","step":"gather_block_move","moved":true,"x":-131,"y":75,"z":-292}
+{"t":1771782774650,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":3,"elapsedMs":58597,"msg":"moving to target (4.0m)"}
+{"t":1771782777760,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":3,"elapsedMs":61707,"msg":"moving to target (2.1m)"}
+{"t":1771782780882,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":3,"elapsedMs":64828,"msg":"moving to target (2.1m)"}
+{"t":1771782783978,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":3,"elapsedMs":67925,"msg":"moving to target (2.1m)"}
+{"t":1771782787054,"type":"task_progress","taskId":2,"intent":"craftItem","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","stepAction":"move","attempt":2,"gatherRingIndex":3,"elapsedMs":71001,"msg":"moving to target (2.1m)"}
+{"t":1771782787208,"type":"reasoner_step_giveup","step":"gather_block","attempt":0,"recoverable":false,"code":"resource_not_loaded","reason":"no log source nearby (within 72)"}
+{"t":1771782788284,"type":"relocate_start","item":"log","ring":120,"timeoutMs":45000,"x":-135,"y":77,"z":-291}
+{"t":1771782788284,"type":"relocate_ok","item":"log","ring":120,"x":-135,"y":77,"z":-291}
+{"t":1771782788285,"type":"reasoner_try","step":"gather_block","attempt":0}
+{"t":1771782788290,"type":"need_acquire_ok","goalId":"goal_1771782714672_2","step":"gather_block"}
+{"t":1771782788290,"type":"step_terminal","taskId":2,"goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s1","action":"gather_block","status":"success"}
+{"t":1771782788291,"type":"need_acquire_start","goalId":"goal_1771782714672_2","step":{"id":"goal_1771782714672_2_s2","action":"craft_recipe","args":{"item":"planks","count":2,"station":"inventory","processType":"craft","variantId":"craft:acacia_planks:acacia_logx1","outputItem":"acacia_planks","ingredients":[{"name":"log","count":1}]},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782788291,"type":"step_progress","taskId":2,"goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s2","action":"craft_recipe","msg":"start craft_recipe"}
+{"t":1771782788291,"type":"reasoner_try","step":"craft_recipe","attempt":0}
+{"t":1771782788298,"type":"need_acquire_ok","goalId":"goal_1771782714672_2","step":"craft_recipe"}
+{"t":1771782788298,"type":"step_terminal","taskId":2,"goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s2","action":"craft_recipe","status":"success"}
+{"t":1771782788298,"type":"need_acquire_start","goalId":"goal_1771782714672_2","step":{"id":"goal_1771782714672_2_s3","action":"ensure_station","args":{"station":"crafting_table"},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782788299,"type":"station_step_start","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s3","action":"ensure_station","station":"crafting_table"}
+{"t":1771782788299,"type":"step_progress","taskId":2,"goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s3","action":"ensure_station","msg":"start ensure_station"}
+{"t":1771782788300,"type":"reasoner_try","step":"ensure_station","attempt":0}
+{"t":1771782788309,"type":"inventory_snapshot","where":"ensureTablePlaced","counts":{"crafting_table":0,"planks":4,"stick":4}}
+{"t":1771782788310,"type":"reasoner_step_giveup","step":"ensure_station","attempt":0,"recoverable":false,"code":"missing_table_item","reason":"need crafting table item"}
+{"t":1771782788310,"type":"station_step_fail","goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s3","action":"ensure_station","station":"crafting_table","code":"missing_table_item","reason":"need crafting table item"}
+{"t":1771782788310,"type":"need_acquire_fail","goalId":"goal_1771782714672_2","step":{"id":"goal_1771782714672_2_s3","action":"ensure_station","args":{"station":"crafting_table"},"retryPolicy":{},"timeoutMs":12000},"code":"missing_table_item","reason":"need crafting table item","nextNeed":"craft crafting_table","meta":null}
+{"t":1771782788311,"type":"step_terminal","taskId":2,"goalId":"goal_1771782714672_2","stepId":"goal_1771782714672_2_s3","action":"ensure_station","status":"fail","code":"missing_table_item","reason":"need crafting table item","nextNeed":"craft crafting_table","meta":null}
+{"t":1771782788311,"type":"craft_job_fail","item":"wooden_sword","count":1,"reason":"need crafting table item","nextNeed":"craft crafting_table","code":"missing_table_item"}
+{"t":1771782788311,"type":"task_fail","taskId":2,"intent":"craftItem","reason":"craft wooden_sword: need crafting table item (next: craft crafting_table)","code":"missing_table_item","nextNeed":"craft crafting_table"}
+{"t":1771782826529,"type":"chat_in","from":"NoSafeSky","message":"craft me a wooden sword","source":"chat"}
+{"t":1771782826530,"type":"intent_decision","from":"NoSafeSky","text":"craft me a wooden sword","intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"rules","confidence":0.92},"threshold":0.72}
+{"t":1771782827261,"type":"command_ack","taskId":3,"intent":"craftItem","latencyMs":1}
+{"t":1771782827261,"type":"task_start","taskId":3,"intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"rules","confidence":0.92,"goalId":"goal_1771782826530_3","constraints":{"timeoutSec":90,"maxDistance":48},"previewNeeds":[{"item":"planks","count":2},{"item":"stick","count":1},{"station":"crafting_table"}]}}
+{"t":1771782827262,"type":"task_progress","taskId":3,"intent":"craftItem","goalId":"goal_1771782826530_3","stepId":null,"stepAction":"craftItem","attempt":0,"gatherRingIndex":null,"elapsedMs":1,"msg":"task started"}
+{"t":1771782827262,"type":"craft_job_start","item":"wooden_sword","count":1}
+{"t":1771782827262,"type":"need_acquire_start","goalId":"goal_1771782826530_3","step":{"id":"goal_1771782826530_3_s1","action":"ensure_station","args":{"station":"crafting_table"},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782827263,"type":"station_step_start","goalId":"goal_1771782826530_3","stepId":"goal_1771782826530_3_s1","action":"ensure_station","station":"crafting_table"}
+{"t":1771782827263,"type":"step_progress","taskId":3,"goalId":"goal_1771782826530_3","stepId":"goal_1771782826530_3_s1","action":"ensure_station","msg":"start ensure_station"}
+{"t":1771782827264,"type":"reasoner_try","step":"ensure_station","attempt":0}
+{"t":1771782827268,"type":"craft_step_ok","action":"ensure_table","reused":true}
+{"t":1771782827268,"type":"station_step_ok","goalId":"goal_1771782826530_3","stepId":"goal_1771782826530_3_s1","action":"ensure_station","station":"crafting_table"}
+{"t":1771782827269,"type":"need_acquire_ok","goalId":"goal_1771782826530_3","step":"ensure_station"}
+{"t":1771782827269,"type":"step_terminal","taskId":3,"goalId":"goal_1771782826530_3","stepId":"goal_1771782826530_3_s1","action":"ensure_station","status":"success"}
+{"t":1771782827269,"type":"need_acquire_start","goalId":"goal_1771782826530_3","step":{"id":"goal_1771782826530_3_s2","action":"craft_recipe","args":{"item":"wooden_sword","count":1,"station":"crafting_table","processType":"craft","variantId":"craft:wooden_sword:oak_planksx2+stickx1","outputItem":"wooden_sword","ingredients":[{"name":"planks","count":2},{"name":"stick","count":1}]},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771782827270,"type":"step_progress","taskId":3,"goalId":"goal_1771782826530_3","stepId":"goal_1771782826530_3_s2","action":"craft_recipe","msg":"start craft_recipe"}
+{"t":1771782827270,"type":"reasoner_try","step":"craft_recipe","attempt":0}
+{"t":1771782827275,"type":"craft_step_ok","action":"ensure_table","reused":true}
+{"t":1771782827276,"type":"recipe_choice_scored","item":"wooden_sword","variantId":"","score":0,"scoreBreakdown":{"equivalentMissing":0,"exactMissing":0,"bambooPenalty":0},"ingredients":[]}
+{"t":1771782827403,"type":"need_acquire_ok","goalId":"goal_1771782826530_3","step":"craft_recipe"}
+{"t":1771782827404,"type":"step_terminal","taskId":3,"goalId":"goal_1771782826530_3","stepId":"goal_1771782826530_3_s2","action":"craft_recipe","status":"success"}
+{"t":1771782827404,"type":"craft_job_success","item":"wooden_sword","count":1}
+{"t":1771782827405,"type":"task_success","taskId":3,"intent":"craftItem"}
+{"t":1771782839581,"type":"chat_in","from":"NoSafeSky","message":"bot inv","source":"chat"}
+{"t":1771782839582,"type":"inventory_debug","tableCount":0,"plankCount":4,"logCount":4,"cobbleCount":0,"sample":[{"name":"oak_log","count":4,"slot":9},{"name":"oak_planks","count":2,"slot":10},{"name":"stick","count":3,"slot":11},{"name":"wooden_sword","count":1,"slot":12},{"name":"oak_planks","count":2,"slot":36}]}
+{"t":1771788911511,"type":"spawn"}
+{"t":1771788911515,"type":"autonomy_disabled"}
+{"t":1771788950479,"type":"chat_in","from":"NoSafeSky","message":"craft me a stone sword","source":"chat"}
+{"t":1771788950481,"type":"intent_decision","from":"NoSafeSky","text":"craft me a stone sword","intent":{"type":"craftItem","item":"stone_sword","count":1,"source":"rules","confidence":0.92},"threshold":0.72}
+{"t":1771788951394,"type":"command_ack","taskId":1,"intent":"craftItem","latencyMs":1}
+{"t":1771788951395,"type":"task_start","taskId":1,"intent":{"type":"craftItem","item":"stone_sword","count":1,"source":"rules","confidence":0.92,"goalId":"goal_1771788950482_1","constraints":{"timeoutSec":90,"maxDistance":48},"previewNeeds":[{"item":"cobblestone","count":2},{"item":"stick","count":1},{"station":"crafting_table"}]}}
+{"t":1771788951395,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":null,"stepAction":"craftItem","attempt":0,"gatherRingIndex":null,"elapsedMs":1,"msg":"task started"}
+{"t":1771788951396,"type":"craft_job_start","item":"stone_sword","count":1}
+{"t":1771788951397,"type":"need_acquire_start","goalId":"goal_1771788950482_1","step":{"id":"goal_1771788950482_1_s1","action":"gather_block","args":{"item":"cobblestone","count":2,"blockNames":["stone","cobblestone","cobbled_deepslate","blackstone"],"preferredBlocks":["cobblestone","stone","cobbled_deepslate","blackstone"],"toolRequirement":{"toolType":"pickaxe","minTier":"wooden","acceptedTools":["diamond_pickaxe","golden_pickaxe","iron_pickaxe","netherite_pickaxe","stone_pickaxe","wooden_pickaxe"]}},"retryPolicy":{},"timeoutMs":12000}}
+{"t":1771788951397,"type":"step_progress","taskId":1,"goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","action":"gather_block","msg":"start gather_block"}
+{"t":1771788951398,"type":"reasoner_try","step":"gather_block","attempt":0}
+{"t":1771788954483,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":1,"gatherRingIndex":1,"elapsedMs":3088,"msg":"moving to target (2.1m)"}
+{"t":1771788957574,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":1,"gatherRingIndex":1,"elapsedMs":6180,"msg":"moving to target (2.1m)"}
+{"t":1771788960630,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":1,"gatherRingIndex":1,"elapsedMs":9236,"msg":"moving to target (2.1m)"}
+{"t":1771788963732,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":1,"gatherRingIndex":1,"elapsedMs":12338,"msg":"moving to target (2.1m)"}
+{"t":1771788964282,"type":"reasoner_reject_summary","total":1,"buckets":[{"key":"findRepositionCandidate:cannot_stand","count":1}]}
+{"t":1771788964286,"type":"reasoner_candidate_pick","step":"gather_block_move","x":-132,"y":74,"z":-289,"score":49.82699342277569}
+{"t":1771788965768,"type":"reasoner_reposition","step":"gather_block_move","moved":true,"x":-132,"y":74,"z":-289}
+{"t":1771788966768,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":1,"gatherRingIndex":1,"elapsedMs":15374,"msg":"moving to target (4.6m)"}
+{"t":1771788969824,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":1,"gatherRingIndex":1,"elapsedMs":18430,"msg":"moving to target (2.1m)"}
+{"t":1771788972860,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":1,"gatherRingIndex":1,"elapsedMs":21466,"msg":"moving to target (2.1m)"}
+{"t":1771788975923,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":1,"gatherRingIndex":1,"elapsedMs":24529,"msg":"moving to target (2.1m)"}
+{"t":1771788979011,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":27617,"msg":"moving to target (2.1m)"}
+{"t":1771788982091,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":30697,"msg":"moving to target (2.1m)"}
+{"t":1771788985182,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":33788,"msg":"moving to target (2.1m)"}
+{"t":1771788988274,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":36880,"msg":"moving to target (2.1m)"}
+{"t":1771788991326,"type":"reasoner_reject_summary","total":174,"buckets":[{"key":"findRepositionCandidate:cannot_stand","count":174}]}
+{"t":1771788991328,"type":"reasoner_candidate_pick","step":"gather_block_move","x":-132,"y":74,"z":-289,"score":47.15344719751574}
+{"t":1771788991328,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":39934,"msg":"moving to target (3.8m)"}
+{"t":1771788992905,"type":"reasoner_reposition","step":"gather_block_move","moved":true,"x":-132,"y":74,"z":-289}
+{"t":1771788994485,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":43091,"msg":"moving to target (4.6m)"}
+{"t":1771788997544,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":46150,"msg":"moving to target (2.1m)"}
+{"t":1771789000623,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":49229,"msg":"moving to target (2.1m)"}
+{"t":1771789003692,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":2,"gatherRingIndex":1,"elapsedMs":52298,"msg":"moving to target (2.1m)"}
+{"t":1771789006774,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771788950482_1","stepId":"goal_1771788950482_1_s1","stepAction":"move","attempt":1,"gatherRingIndex":2,"elapsedMs":55380,"msg":"moving to target (2.1m)"}
+{"t":1771789220444,"type":"spawn"}
+{"t":1771789220449,"type":"autonomy_disabled"}
+{"t":1771789223712,"type":"chat_in","from":"NoSafeSky","message":"hi","source":"chat"}
+{"t":1771789230264,"type":"intent_decision","from":"NoSafeSky","text":"hi","intent":{"type":"none","source":"rules","confidence":0},"threshold":0.72,"llmPrimaryRouting":true,"llmIntentType":"none"}
+{"t":1771789231116,"type":"chat_reply","to":"NoSafeSky","reply":"Hello! How can I assist you in Minecraft?","source":"llm"}
+{"t":1771789245528,"type":"chat_in","from":"NoSafeSky","message":"craft me a wooden sword","source":"chat"}
+{"t":1771789247689,"type":"intent_decision","from":"NoSafeSky","text":"craft me a wooden sword","intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"llm","confidence":1},"threshold":0.72,"llmPrimaryRouting":true,"llmIntentType":"craftItem"}
+{"t":1771789248615,"type":"command_ack","taskId":1,"intent":"craftItem","latencyMs":0}
+{"t":1771789248617,"type":"task_start","taskId":1,"intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"llm","confidence":1,"goalId":"goal_1771789247690_1","constraints":{"timeoutSec":90,"maxDistance":48},"previewNeeds":[]}}
+{"t":1771789248617,"type":"task_progress","taskId":1,"intent":"craftItem","goalId":"goal_1771789247690_1","stepId":null,"stepAction":"craftItem","attempt":0,"gatherRingIndex":null,"elapsedMs":1,"msg":"task started"}
+{"t":1771789248618,"type":"craft_job_start","item":"wooden_sword","count":1}
+{"t":1771789248620,"type":"craft_job_success","item":"wooden_sword","count":1}
+{"t":1771789248621,"type":"task_success","taskId":1,"intent":"craftItem"}
+{"t":1771789272059,"type":"chat_in","from":"NoSafeSky","message":"follow","source":"chat"}
+{"t":1771789273384,"type":"intent_decision","from":"NoSafeSky","text":"follow","intent":{"type":"follow","target":"NoSafeSky","source":"llm","confidence":1},"threshold":0.72,"llmPrimaryRouting":true,"llmIntentType":"follow"}
+{"t":1771789273385,"type":"command_ack","taskId":2,"intent":"follow","latencyMs":0}
+{"t":1771789273386,"type":"task_start","taskId":2,"intent":{"type":"follow","target":"NoSafeSky","source":"llm","confidence":1}}
+{"t":1771789273386,"type":"task_progress","taskId":2,"intent":"follow","goalId":null,"stepId":null,"stepAction":"follow","attempt":0,"gatherRingIndex":null,"elapsedMs":0,"msg":"task started"}
+{"t":1771789273398,"type":"follow","playerName":"NoSafeSky"}
+{"t":1771789273398,"type":"task_success","taskId":2,"intent":"follow"}
+{"t":1771789281424,"type":"chat_in","from":"NoSafeSky","message":"stop","source":"chat"}
+{"t":1771789282392,"type":"intent_decision","from":"NoSafeSky","text":"stop","intent":{"type":"stop","source":"llm","confidence":0.95},"threshold":0.72,"llmPrimaryRouting":true,"llmIntentType":"stop"}
+{"t":1771789282393,"type":"command_ack","taskId":3,"intent":"stop","latencyMs":1}
+{"t":1771789282393,"type":"task_start","taskId":3,"intent":{"type":"stop","source":"llm","confidence":0.95}}
+{"t":1771789282394,"type":"task_progress","taskId":3,"intent":"stop","goalId":null,"stepId":null,"stepAction":"stop","attempt":0,"gatherRingIndex":null,"elapsedMs":1,"msg":"task started"}
+{"t":1771789282394,"type":"stop"}
+{"t":1771789282395,"type":"task_success","taskId":3,"intent":"stop"}
+{"t":1771789291090,"type":"chat_in","from":"NoSafeSky","message":"craft me a wooden sword","source":"chat"}
+{"t":1771789292767,"type":"intent_decision","from":"NoSafeSky","text":"craft me a wooden sword","intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"llm","confidence":1},"threshold":0.72,"llmPrimaryRouting":true,"llmIntentType":"craftItem"}
+{"t":1771789293610,"type":"command_ack","taskId":4,"intent":"craftItem","latencyMs":0}
+{"t":1771789293611,"type":"task_start","taskId":4,"intent":{"type":"craftItem","item":"wooden_sword","count":1,"source":"llm","confidence":1,"goalId":"goal_1771789292767_2","constraints":{"timeoutSec":90,"maxDistance":48},"previewNeeds":[]}}
+{"t":1771789293611,"type":"task_progress","taskId":4,"intent":"craftItem","goalId":"goal_1771789292767_2","stepId":null,"stepAction":"craftItem","attempt":0,"gatherRingIndex":null,"elapsedMs":0,"msg":"task started"}
+{"t":1771789293612,"type":"craft_job_start","item":"wooden_sword","count":1}
+{"t":1771789293612,"type":"craft_job_success","item":"wooden_sword","count":1}
+{"t":1771789293613,"type":"task_success","taskId":4,"intent":"craftItem"}

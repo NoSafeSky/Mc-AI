@@ -5,6 +5,14 @@ function isCancelled(runCtx) {
   return !!runCtx?.isCancelled?.();
 }
 
+function reportProgress(runCtx, message, extra = {}) {
+  try {
+    if (typeof runCtx?.reportProgress === "function") {
+      runCtx.reportProgress(message, extra);
+    }
+  } catch {}
+}
+
 async function waitTicks(bot, ticks, runCtx) {
   let left = ticks;
   while (left > 0) {
@@ -19,9 +27,19 @@ async function waitTicks(bot, ticks, runCtx) {
 async function moveTo(bot, pos, timeoutMs, runCtx) {
   bot.pathfinder.setGoal(new goals.GoalNear(pos.x, pos.y, pos.z, 1));
   const start = Date.now();
+  let lastProgressBeat = 0;
   while (Date.now() - start < timeoutMs) {
     if (isCancelled(runCtx)) return false;
-    if (bot.entity.position.distanceTo(pos) <= 1.5) return true;
+    const dist = bot.entity.position.distanceTo(pos);
+    const now = Date.now();
+    if (now - lastProgressBeat >= 2000) {
+      reportProgress(runCtx, `correcting position (${dist.toFixed(1)}m)`, {
+        stepAction: runCtx?.currentStepAction || "move",
+        distance: Number(dist.toFixed(2))
+      });
+      lastProgressBeat = now;
+    }
+    if (dist <= 1.5) return true;
     const ok = await waitTicks(bot, 10, runCtx);
     if (!ok) return false;
   }

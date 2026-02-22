@@ -7,6 +7,7 @@ const {
   scoreRecipeVariant
 } = require("./acquisition_registry");
 const { normalizeItemName } = require("./knowledge");
+const { getRecipeVariants } = require("./recipe_db");
 
 function normalizeText(text) {
   return String(text || "")
@@ -72,6 +73,9 @@ function ingredientsToText(ingredients) {
 function buildRecipeReply(item, selected, variants) {
   const ingredientText = ingredientsToText(selected.ingredients);
   const stationText = stationLabel(selected.station);
+  const processPrefix = selected.processType === "smelt"
+    ? "smelt"
+    : (selected.processType === "smithing" ? "smith" : (selected.processType === "stonecut" ? "stonecut" : "recipe"));
   if (variants.length > 1) {
     const other = variants
       .filter((v) => v.variantId !== selected.variantId)
@@ -79,10 +83,10 @@ function buildRecipeReply(item, selected, variants) {
       .slice(0, 2)
       .join(" | ");
     if (other) {
-      return `recipe ${item}: ${ingredientText} at ${stationText}. variants: ${other}`;
+      return `${processPrefix} ${item}: ${ingredientText} at ${stationText}. variants: ${other}`;
     }
   }
-  return `recipe ${item}: ${ingredientText} at ${stationText}.`;
+  return `${processPrefix} ${item}: ${ingredientText} at ${stationText}.`;
 }
 
 function defaultSnapshot(snapshot = null) {
@@ -111,29 +115,54 @@ function resolveRecipeAnswer(text, botVersion = "1.21.1", cfg = {}, snapshot = n
     return { ok: false, reason: "recipe_item_unknown", item, rawTarget };
   }
 
-  const recipes = mcData.recipes?.[itemInfo.id] || [];
-  if (!recipes.length) {
-    return { ok: false, reason: "recipe_unavailable", item };
-  }
-
   const ctx = { cfg, snapshot: defaultSnapshot(snapshot) };
-  const variants = recipes
-    .map((recipe) => {
-      const rawIngredients = parseRecipeIngredients(recipe, mcData);
+  let variants = getRecipeVariants(item, {
+    version: botVersion,
+    recipeExecutionScope: cfg.recipeExecutionScope || "craft_smelt_stations",
+    stationExecutionEnabled: cfg.stationExecutionEnabled || cfg.supportedStations
+  })
+    .map((variant) => {
+      const rawIngredients = (variant.ingredients || []).map((ing) => ({
+        name: normalizeItemName(ing.name),
+        count: Number(ing.count || 1)
+      }));
       const ingredients = normalizeRecipeIngredientsForPlanning(rawIngredients, cfg || {});
-      const station = stationForRecipe(recipe);
-      const variantId = recipeVariantId(rawIngredients);
       const scoreInfo = scoreRecipeVariant(item, rawIngredients, ingredients, ctx);
       return {
-        station,
+        station: variant.station || "inventory",
+        processType: variant.processType || "craft",
         ingredients: rawIngredients,
         normalizedIngredients: ingredients,
-        variantId,
-        recipe,
+        variantId: variant.variantId || recipeVariantId(rawIngredients),
         score: Number(scoreInfo.score || 0)
       };
     })
-    .filter((v) => v.ingredients.length > 0)
+    .filter((v) => v.ingredients.length > 0);
+
+  // Fallback for older snapshots that only include crafting recipes.
+  if (!variants.length) {
+    const recipes = mcData.recipes?.[itemInfo.id] || [];
+    variants = recipes
+      .map((recipe) => {
+        const rawIngredients = parseRecipeIngredients(recipe, mcData);
+        const ingredients = normalizeRecipeIngredientsForPlanning(rawIngredients, cfg || {});
+        const station = stationForRecipe(recipe);
+        const variantId = recipeVariantId(rawIngredients);
+        const scoreInfo = scoreRecipeVariant(item, rawIngredients, ingredients, ctx);
+        return {
+          station,
+          processType: "craft",
+          ingredients: rawIngredients,
+          normalizedIngredients: ingredients,
+          variantId,
+          recipe,
+          score: Number(scoreInfo.score || 0)
+        };
+      })
+      .filter((v) => v.ingredients.length > 0);
+  }
+
+  variants = variants
     .sort((a, b) => {
       if (a.score !== b.score) return a.score - b.score;
       return a.variantId.localeCompare(b.variantId);

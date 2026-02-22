@@ -281,9 +281,22 @@ function findRepositionCandidate(bot, options = {}) {
 async function moveToPosition(bot, pos, timeoutMs, runCtx) {
   bot.pathfinder.setGoal(new goals.GoalNear(pos.x, pos.y, pos.z, 1));
   const started = Date.now();
+  let lastProgressBeat = 0;
   while (Date.now() - started < timeoutMs) {
     if (runCtx?.isCancelled?.()) return false;
     const dist = bot.entity.position.distanceTo(pos);
+    const now = Date.now();
+    if (now - lastProgressBeat >= 2000) {
+      try {
+        if (typeof runCtx?.reportProgress === "function") {
+          runCtx.reportProgress(`reasoner move (${dist.toFixed(1)}m)`, {
+            stepAction: runCtx?.currentStepAction || "move",
+            distance: Number(dist.toFixed(2))
+          });
+        }
+      } catch {}
+      lastProgressBeat = now;
+    }
     if (dist <= 1.5) return true;
     await bot.waitForTicks(10);
   }

@@ -225,6 +225,51 @@ Environment: local Minecraft server + running bot
 - Expect no resume task.
 - Expect log `confirm_expand_search_no` or `confirm_expand_search_timeout`.
 
+## Basic Intelligence v4 (Full Recipe DB + Stations + Auto-Relocate)
+
+40. Planner budget no longer times out on simple weapon craft
+- Send: `craft me a wooden sword`.
+- Expect no `dependency planner timeout`.
+- Expect `planner_budget_start` and `goal_plan_built` in logs.
+
+41. LLM invalid craft target hard reject
+- Send: `craft me a banana sword`.
+- Expect immediate `can't: unknown craft target` or `can't: unsupported craft target`.
+- Expect no task execution start for fake item.
+
+42. Smelt chain planning present for smelted outputs
+- Send: `craft me an iron sword`.
+- Expect plan contains `smelt_recipe` and `ensure_station` when ore/raw materials are needed.
+- Expect `station_step_start` and `fuel_plan_start` logs when smelting starts.
+
+43. Auto-relocate for missing resources (no yes/no prompt)
+- Keep bot in area with no logs/stone in current rings.
+- Send: `craft me a stone sword`.
+- Expect relocation attempts automatically (no owner confirmation gate).
+- Expect logs: `relocate_start` then `relocate_ok` or `relocate_fail`.
+
+44. Relocation bounded by configured limit
+- Keep resource unavailable even after movement.
+- Send: `craft me a stone sword`.
+- Expect explicit terminal fail after bounded attempts.
+- Expect no infinite loop and terminal `task_fail` with reason.
+
+45. Station placement fallback (non-crafting-table station)
+- Put a furnace item in inventory and no furnace nearby.
+- Trigger a smelt step.
+- Expect bot attempts to place station in valid nearby spot.
+- Expect station logs: `station_step_start`, `station_step_ok` (or explicit fail reason).
+
+46. Stick recipe avoids bamboo-first path by default
+- World has bamboo and logs.
+- Send: `craft me a stone sword`.
+- Expect bot does not force bamboo stick recipe unless it is the only viable route.
+
+47. Recipe Q&A aligns with deterministic executor variants
+- Send: `how to craft a stone sword`.
+- Expect deterministic variant answer with station/ingredients.
+- Expect answer choice aligns with overworld-safe policy when inventory is empty.
+
 ## Debug Commands (owner with prefix)
 - `bot entities`
 - `bot where`
@@ -232,6 +277,6 @@ Environment: local Minecraft server + running bot
 - `bot rawtypes`
 
 ## Pass Criteria
-- All 39 scenarios behave as expected.
+- All 47 scenarios behave as expected.
 - No unhandled exceptions in console.
 - Logs include `intent_decision`, `task_start`, and success/failure outcomes.

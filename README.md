@@ -34,9 +34,10 @@ Minecraft bot with hybrid natural-language command understanding.
 ## Unsupported / Ambiguous Requests
 - Ambiguous combat like `kill it` is rejected with `can't: specify mob target`.
 - Unsupported tasks are rejected with `can't: unsupported request`.
-- Unsupported craft requests (e.g. iron-tier) are rejected with explicit next need.
+- Unsupported craft/acquisition chains are rejected with explicit next need.
 - Missing nearby targets produce specific errors like `can't: no pig nearby`.
-- Missing craft resources can trigger confirmation prompt (`expand search ... yes/no`) when `missingResourcePolicy="ask_before_move"`.
+- Missing craft resources auto-relocate by default when `missingResourcePolicy="auto_relocate"`.
+- Optional confirmation prompt (`expand search ... yes/no`) is still available with `missingResourcePolicy="ask_before_move"`.
 - Target matching is exact-first; `pig` will not match `piglin`.
 
 ## Structured Acknowledgment
@@ -49,6 +50,7 @@ Example:
 ## Important Config Keys
 - `commandNoPrefixOwner`
 - `intentConfidenceThreshold`
+- `llmPrimaryRouting`
 - `structuredAck`
 - `recipeQuestionMode`
 - `recipeQuestionNoAction`
@@ -58,8 +60,18 @@ Example:
 - `strictHarvestToolGate`
 - `autoAcquireRequiredTools`
 - `missingResourcePolicy`
+- `missingResourceAutoRings`
+- `missingResourceMaxRelocations`
+- `missingResourceRelocateTimeoutSec`
 - `missingResourceConfirmTimeoutSec`
 - `missingResourceExpandedRadius`
+- `recipeExecutionScope`
+- `stationExecutionEnabled`
+- `fuelPolicy`
+- `dependencyPlanTimeoutMs`
+- `dependencyMaxNodes`
+- `recipePlannerBeamWidth`
+- `recipeVariantCapPerItem`
 - `dynamicMoveTimeoutBaseMs`
 - `dynamicMoveTimeoutPerBlockMs`
 - `ollamaDisableThinking`

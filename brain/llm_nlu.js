@@ -30,7 +30,19 @@ function noneIntent(reason = "none", extra = {}) {
   };
 }
 
-function validateIntent(obj, owner) {
+function isKnownCraftItem(item, version = "1.21.1") {
+  const name = String(item || "").toLowerCase().trim();
+  if (!name) return false;
+  if (name === "planks") return true;
+  try {
+    const mcData = require("minecraft-data")(version);
+    return !!mcData.itemsByName?.[name];
+  } catch {
+    return false;
+  }
+}
+
+function validateIntent(obj, owner, version = "1.21.1") {
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return noneIntent("invalid_shape");
   if (!ALLOWED_TYPES.has(obj.type)) return noneIntent("unknown_type");
   if (typeof obj.confidence !== "number" || Number.isNaN(obj.confidence)) return noneIntent("missing_confidence");
@@ -57,6 +69,7 @@ function validateIntent(obj, owner) {
       const item = typeof obj.item === "string" ? obj.item.toLowerCase().trim() : "";
       const count = Number.isFinite(obj.count) ? Math.max(1, Math.min(64, Number(obj.count))) : 1;
       if (!item) return noneIntent("missing_craft_item");
+      if (!isKnownCraftItem(item, version)) return noneIntent("unknown_craft_target");
       return { type: "craftItem", item, count, source: "llm", confidence };
     }
     case "explore": {
@@ -85,16 +98,16 @@ function validateIntent(obj, owner) {
   }
 }
 
-function parseIntentText(text, owner) {
+function parseIntentText(text, owner, version = "1.21.1") {
   try {
     const parsed = JSON.parse(String(text || "").trim());
-    return validateIntent(parsed, owner);
+    return validateIntent(parsed, owner, version);
   } catch {
     return noneIntent("invalid_json");
   }
 }
 
-function parseOllamaIntentPayload(data, owner) {
+function parseOllamaIntentPayload(data, owner, version = "1.21.1") {
   const extracted = extractOllamaText(data);
   if (!extracted.ok) {
     return noneIntent(extracted.code, {
@@ -103,7 +116,7 @@ function parseOllamaIntentPayload(data, owner) {
       hasThinking: extracted.hasThinking
     });
   }
-  return parseIntentText(extracted.text, owner);
+  return parseIntentText(extracted.text, owner, version);
 }
 
 function classifyLlmError(provider, error) {
@@ -191,7 +204,7 @@ JSON:`;
       }
       const data = await res.json();
       const text = data?.choices?.[0]?.message?.content?.trim() || "";
-      return parseIntentText(text, cfg.owner);
+      return parseIntentText(text, cfg.owner, cfg.version || "1.21.1");
     }
 
     if (provider === "gemini") {
@@ -219,7 +232,7 @@ JSON:`;
       }
       const data = await res.json();
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
-      return parseIntentText(text, cfg.owner);
+      return parseIntentText(text, cfg.owner, cfg.version || "1.21.1");
     }
 
     const mode = (cfg.ollamaRequestMode || "stable").toLowerCase();
@@ -243,7 +256,7 @@ JSON:`;
       return noneIntent("llm_http_error", { unavailable: true, provider, status: res.status });
     }
     const data = await res.json();
-    return parseOllamaIntentPayload(data, cfg.owner);
+    return parseOllamaIntentPayload(data, cfg.owner, cfg.version || "1.21.1");
   } catch (e) {
     const reason = classifyLlmError(provider, e);
     return noneIntent(reason, { unavailable: true, provider, error: String(e) });
