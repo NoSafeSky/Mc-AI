@@ -15,13 +15,14 @@ test("ollama plan payload sets lastPlanFailure on thinking-only response", () =>
 });
 
 test("ollama plan payload parses valid JSON steps", () => {
-  const plan = parseOllamaPlanPayload(
+  const route = parseOllamaPlanPayload(
     {
-      response: "{\"steps\":[{\"action\":\"explore\",\"radius\":120,\"seconds\":30}]}"
+      response: "{\"kind\":\"action\",\"confidence\":0.91,\"goals\":[{\"type\":\"explore\",\"args\":{\"radius\":120,\"seconds\":30}}]}"
     },
     { maxExploreRadius: 500 }
   );
-  assert.ok(plan);
-  assert.equal(plan.steps.length, 1);
-  assert.equal(plan.steps[0].action, "explore");
+  assert.ok(route);
+  assert.equal(route.kind, "action");
+  assert.equal(route.goals.length, 1);
+  assert.equal(route.goals[0].type, "explore");
 });

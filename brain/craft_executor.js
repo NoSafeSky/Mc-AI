@@ -845,13 +845,56 @@ function moveTimeoutForDistance(cfg, distance) {
   return Math.min(45000, Math.max(1000, estimate));
 }
 
-function hasAdjacentStandSpot(bot, block) {
-  if (!block?.position) return false;
-  const dirs = [
+function blockPosKey(pos) {
+  if (!pos) return "";
+  return `${pos.x}|${pos.y}|${pos.z}`;
+}
+
+function standSpotsAroundBlock(block) {
+  if (!block?.position) return [];
+  return [
+    { x: 0, z: 0 },
     { x: 1, z: 0 },
     { x: -1, z: 0 },
     { x: 0, z: 1 },
-    { x: 0, z: -1 }
+    { x: 0, z: -1 },
+    { x: 1, z: 1 },
+    { x: 1, z: -1 },
+    { x: -1, z: 1 },
+    { x: -1, z: -1 }
+  ].map((d) => block.position.offset(d.x, 0, d.z).floored());
+}
+
+function selectBestStandSpot(bot, block) {
+  const spots = standSpotsAroundBlock(block);
+  let best = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const feetPos of spots) {
+    const below = bot.blockAt(feetPos.offset(0, -1, 0));
+    const feet = bot.blockAt(feetPos);
+    const head = bot.blockAt(feetPos.offset(0, 1, 0));
+    if (!isSolidBlock(below) || !isEmptyBlock(feet) || !isEmptyBlock(head)) continue;
+    const dist = bot.entity.position.distanceTo(feetPos);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = feetPos;
+    }
+  }
+  return best ? { standPos: best, standDistance: bestDist } : null;
+}
+
+function hasAdjacentStandSpot(bot, block) {
+  if (!block?.position) return false;
+  const dirs = [
+    { x: 0, z: 0 },
+    { x: 1, z: 0 },
+    { x: -1, z: 0 },
+    { x: 0, z: 1 },
+    { x: 0, z: -1 },
+    { x: 1, z: 1 },
+    { x: 1, z: -1 },
+    { x: -1, z: 1 },
+    { x: -1, z: -1 }
   ];
   for (const d of dirs) {
     const feetPos = block.position.offset(d.x, 0, d.z);
@@ -863,6 +906,73 @@ function hasAdjacentStandSpot(bot, block) {
     }
   }
   return false;
+}
+
+function ringOffsets(ring) {
+  if (ring <= 0) return [{ dx: 0, dz: 0 }];
+  const out = [];
+  for (let i = -ring; i <= ring; i += 1) {
+    out.push({ dx: i, dz: -ring });
+    out.push({ dx: i, dz: ring });
+    if (i !== -ring && i !== ring) {
+      out.push({ dx: -ring, dz: i });
+      out.push({ dx: ring, dz: i });
+    }
+  }
+  return out;
+}
+
+function closestStandDistance(bot, block) {
+  const selected = selectBestStandSpot(bot, block);
+  return selected ? selected.standDistance : Number.POSITIVE_INFINITY;
+}
+
+function localScanCandidates(bot, matchSet, maxDistance, limit = 96) {
+  if (!bot?.entity?.position) return [];
+  const out = [];
+  const seen = new Set();
+  const center = bot.entity.position.floored();
+  // Keep local scan truly local so ring expansion still controls wider search.
+  const localRadius = Math.max(1, Math.min(Number(maxDistance || 8), 6));
+  const yOffsets = [0, -1, 1, -2, 2, 3, -3];
+
+  for (let ring = 0; ring <= localRadius; ring += 1) {
+    const offsets = ringOffsets(ring);
+    for (const y of yOffsets) {
+      for (const off of offsets) {
+        const pos = center.offset(off.dx, y, off.dz);
+        const key = `${pos.x}|${pos.y}|${pos.z}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const block = bot.blockAt(pos);
+        if (!block) continue;
+        if (!matchSet.has(normalizeItemName(block.name))) continue;
+        out.push(block);
+        if (out.length >= limit) return out;
+      }
+    }
+  }
+  return out;
+}
+
+function localBlockSummary(bot, radius = 4, maxNames = 8) {
+  if (!bot?.entity?.position) return [];
+  const center = bot.entity.position.floored();
+  const counts = new Map();
+  for (let y = -1; y <= 2; y += 1) {
+    for (let x = -radius; x <= radius; x += 1) {
+      for (let z = -radius; z <= radius; z += 1) {
+        const b = bot.blockAt(center.offset(x, y, z));
+        const name = normalizeItemName(b?.name || "");
+        if (!name || name === "air" || name === "cave_air" || name === "void_air") continue;
+        counts.set(name, (counts.get(name) || 0) + 1);
+      }
+    }
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, maxNames)
+    .map(([name, count]) => `${name}:${count}`);
 }
 
 function selectBestCraftRecipe(recipes, item, bot, cfg, log = () => {}) {
@@ -999,9 +1109,9 @@ async function craftRecipeStep(bot, args, cfg, runCtx, log, ctx) {
   return { ok: true };
 }
 
-function findNearestCandidateBlock(bot, blockNames, preferredBlocks, maxDistance) {
+function findCandidateBlocks(bot, blockNames, preferredBlocks, maxDistance, options = {}) {
   const matchSet = new Set((blockNames || []).map((n) => normalizeItemName(n)).filter(Boolean));
-  if (!matchSet.size) return null;
+  if (!matchSet.size) return [];
   const preferred = Array.isArray(preferredBlocks) && preferredBlocks.length
     ? preferredBlocks.map((n) => normalizeItemName(n)).filter(Boolean)
     : Array.from(matchSet.values());
@@ -1010,45 +1120,72 @@ function findNearestCandidateBlock(bot, blockNames, preferredBlocks, maxDistance
     const key = normalizeItemName(name);
     return preference.has(key) ? preference.get(key) : preferred.length + 10;
   };
+  const sampleCount = Math.max(32, Number(options.blockSampleCount || 128));
+  const candidateLimit = Math.max(1, Number(options.candidateLimit || 8));
+  const exclude = options.excludePositions instanceof Set ? options.excludePositions : null;
+  const candidates = [];
+  const seen = new Set();
+
+  const pushBlock = (block) => {
+    if (!block?.position) return;
+    const key = blockPosKey(block.position);
+    if (!key) return;
+    if (exclude && exclude.has(key)) return;
+    if (seen.has(key)) return;
+    seen.add(key);
+    candidates.push(block);
+  };
 
   if (typeof bot.findBlocks === "function") {
     const positions = bot.findBlocks({
       matching: (b) => !!b && matchSet.has(normalizeItemName(b.name)),
       maxDistance,
-      count: 16
+      count: sampleCount
     }) || [];
-
-    const eyeY = Number(bot.entity?.position?.y || 0);
-    const blocksUnfiltered = positions
-      .map((p) => bot.blockAt(p))
-      .filter(Boolean);
-
-    const blocksFiltered = blocksUnfiltered
-      .filter((b) => Math.abs(Number(b.position?.y || 0) - eyeY) <= 10)
-      .filter((b) => hasAdjacentStandSpot(bot, b));
-
-    const blocks = (blocksFiltered.length ? blocksFiltered : blocksUnfiltered)
-      .sort((a, b) => {
-        const pa = rankFor(a.name);
-        const pb = rankFor(b.name);
-        if (pa !== pb) return pa - pb;
-        const da = bot.entity.position.distanceTo(a.position);
-        const db = bot.entity.position.distanceTo(b.position);
-        if (da !== db) return da - db;
-        const ya = Math.abs(Number(a.position?.y || 0) - eyeY);
-        const yb = Math.abs(Number(b.position?.y || 0) - eyeY);
-        if (ya !== yb) return ya - yb;
-        if (a.position.x !== b.position.x) return a.position.x - b.position.x;
-        if (a.position.y !== b.position.y) return a.position.y - b.position.y;
-        return a.position.z - b.position.z;
-      });
-    return blocks[0] || null;
+    for (const pos of positions) {
+      pushBlock(bot.blockAt(pos));
+    }
+  } else if (typeof bot.findBlock === "function") {
+    pushBlock(bot.findBlock({
+      matching: (b) => !!b && matchSet.has(normalizeItemName(b.name)),
+      maxDistance
+    }) || null);
   }
 
-  return bot.findBlock({
-    matching: (b) => !!b && matchSet.has(normalizeItemName(b.name)),
-    maxDistance
-  }) || null;
+  for (const block of localScanCandidates(bot, matchSet, maxDistance, sampleCount)) {
+    pushBlock(block);
+  }
+
+  const eyeY = Number(bot.entity?.position?.y || 0);
+  const scored = candidates
+    .map((block) => {
+      const dist = bot.entity.position.distanceTo(block.position);
+      const yDelta = Math.abs(Number(block.position?.y || 0) - eyeY);
+      const prefRank = rankFor(block.name);
+      const stand = selectBestStandSpot(bot, block);
+      const standDist = stand ? stand.standDistance : Number.POSITIVE_INFINITY;
+      const directReach = dist <= 3.1;
+      const moveCost = Number.isFinite(standDist) ? standDist : (directReach ? 0.5 : Number.POSITIVE_INFINITY);
+      const standable = Number.isFinite(moveCost);
+      const score = prefRank * 1000 + (standable ? 0 : 800) + moveCost * 3 + dist + yDelta * 2;
+      return { block, standPos: stand?.standPos || null, score, dist, yDelta, standable };
+    })
+    .filter((row) => Number.isFinite(row.score))
+    .sort((a, b) => {
+      if (a.score !== b.score) return a.score - b.score;
+      if (a.dist !== b.dist) return a.dist - b.dist;
+      if (a.yDelta !== b.yDelta) return a.yDelta - b.yDelta;
+      if (a.block.position.x !== b.block.position.x) return a.block.position.x - b.block.position.x;
+      if (a.block.position.y !== b.block.position.y) return a.block.position.y - b.block.position.y;
+      return a.block.position.z - b.block.position.z;
+    });
+
+  return scored.slice(0, candidateLimit);
+}
+
+function findNearestCandidateBlock(bot, blockNames, preferredBlocks, maxDistance, options = {}) {
+  const candidates = findCandidateBlocks(bot, blockNames, preferredBlocks, maxDistance, options);
+  return candidates[0] || null;
 }
 
 async function gatherBlockStep(bot, args, cfg, runCtx, log) {
@@ -1093,11 +1230,15 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
     .filter((n) => Number.isFinite(n) && n > 0)
     .sort((a, b) => a - b);
   const retriesPerRing = Math.max(1, Number(cfg.gatherExpandRetryPerRing || 2));
+  const targetCandidateLimit = Math.max(1, Number(cfg.gatherTargetCandidates || 6));
+  const targetFailLimit = Math.max(1, Number(cfg.gatherTargetFailLimit || 2));
+  const failedTargets = new Map();
 
   while (inventoryCount(bot, item) < count) {
     if (isCancelled(runCtx)) return { ok: false, status: "cancel" };
     const maxRing = rings[rings.length - 1] || 48;
     let gatheredThisLoop = false;
+    let sawAnyCandidate = false;
 
     for (let ringIndex = 0; ringIndex < rings.length; ringIndex += 1) {
       const radius = rings[ringIndex];
@@ -1115,22 +1256,84 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
           attempt
         });
 
-        const block = findNearestCandidateBlock(bot, blockNames, preferredBlocks, radius);
-        if (!block) {
+        const blockedPositions = new Set(
+          Array.from(failedTargets.entries())
+            .filter(([, fails]) => fails >= targetFailLimit)
+            .map(([key]) => key)
+        );
+        let target = findNearestCandidateBlock(bot, blockNames, preferredBlocks, radius, {
+          blockSampleCount: cfg.gatherBlockSampleCount || 128,
+          candidateLimit: targetCandidateLimit,
+          excludePositions: blockedPositions
+        });
+        if (!target && blockedPositions.size > 0) {
+          blockedPositions.clear();
+          target = findNearestCandidateBlock(bot, blockNames, preferredBlocks, radius, {
+            blockSampleCount: cfg.gatherBlockSampleCount || 128,
+            candidateLimit: targetCandidateLimit
+          });
+        }
+        if (!target) {
+          const nearby = localBlockSummary(bot, 4, 8);
+          log({
+            type: "gather_scan_none",
+            item,
+            radius,
+            attempt,
+            blockNames: blockNames.slice(0, 8),
+            blockedTargetCount: blockedPositions.size,
+            nearby
+          });
           const waitedNoBlock = await waitTicks(bot, 6, runCtx);
           if (!waitedNoBlock) return { ok: false, status: "cancel" };
           continue;
         }
 
+        sawAnyCandidate = true;
+        const block = target.block;
+        if (!block) {
+          const waitedMissingTarget = await waitTicks(bot, 4, runCtx);
+          if (!waitedMissingTarget) return { ok: false, status: "cancel" };
+          continue;
+        }
+        const standPos = target.standPos || null;
+        const targetKey = blockPosKey(block.position);
+        const markTargetFailed = () => {
+          if (!targetKey) return;
+          failedTargets.set(targetKey, Number(failedTargets.get(targetKey) || 0) + 1);
+        };
+        const clearTargetFail = () => {
+          if (!targetKey) return;
+          failedTargets.delete(targetKey);
+        };
+
+        log({
+          type: "gather_target_selected",
+          item,
+          block: normalizeItemName(block.name),
+          x: block.position.x,
+          y: block.position.y,
+          z: block.position.z,
+          standX: standPos?.x ?? null,
+          standY: standPos?.y ?? null,
+          standZ: standPos?.z ?? null,
+          score: Number.isFinite(target.score) ? Number(target.score.toFixed(2)) : null,
+          radius,
+          attempt,
+          distance: Number((bot.entity.position.distanceTo(block.position) || 0).toFixed(2))
+        });
+
         const dynamicMoveTimeoutMs = moveTimeoutForDistance(
           cfg,
-          bot.entity?.position?.distanceTo?.(block.position) || radius
+          bot.entity?.position?.distanceTo?.(standPos || block.position) || radius
         );
 
+        const moveTarget = standPos || block.position;
+        const moveRadius = standPos ? 1 : 2;
         const reached = await moveNearWithReasoning(
           bot,
-          block.position,
-          2,
+          moveTarget,
+          moveRadius,
           dynamicMoveTimeoutMs,
           runCtx,
           cfg,
@@ -1138,6 +1341,14 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
           "gather_block_move"
         );
         if (!reached) {
+          markTargetFailed();
+          log({
+            type: "gather_target_reject",
+            item,
+            block: normalizeItemName(block.name),
+            reason: "path_blocked",
+            failedCount: Number(failedTargets.get(targetKey) || 1)
+          });
           const waitedMoveFail = await waitTicks(bot, 4, runCtx);
           if (!waitedMoveFail) return { ok: false, status: "cancel" };
           continue;
@@ -1148,6 +1359,7 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
         try {
           const digBlock = bot.blockAt(block.position);
           if (!digBlock) {
+            markTargetFailed();
             const waitedMissing = await waitTicks(bot, 4, runCtx);
             if (!waitedMissing) return { ok: false, status: "cancel" };
             continue;
@@ -1156,13 +1368,23 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
           if (strictToolGate) {
             activeRequirement = normalizeToolRequirement(getBlockToolRequirement(digBlock, mcData)) || stepRequirement;
             if (activeRequirement) {
+              const blockName = normalizeItemName(digBlock.name);
+              let equipped = normalizeItemName(bot.heldItem?.name || "");
+              const initiallySufficient = isToolSufficient(equipped, activeRequirement);
               log({
                 type: "gather_tool_required",
                 item,
-                block: normalizeItemName(digBlock.name),
+                block: blockName,
                 toolRequirement: activeRequirement
               });
-              let equipped = normalizeItemName(bot.heldItem?.name || "");
+              log({
+                type: "gather_tool_check",
+                item,
+                block: blockName,
+                toolRequirement: activeRequirement,
+                heldItem: equipped || null,
+                sufficient: initiallySufficient
+              });
               if (!isToolSufficient(equipped, activeRequirement)) {
                 let toolItem = pickBestInventoryTool(bot, activeRequirement);
 
@@ -1225,6 +1447,13 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
                   };
                 }
                 equipped = normalizeItemName(bot.heldItem?.name || toolItem.name);
+                log({
+                  type: "gather_tool_equip",
+                  item,
+                  block: blockName,
+                  equipped,
+                  toolRequirement: activeRequirement
+                });
                 if (!isToolSufficient(equipped, activeRequirement)) {
                   return {
                     ok: false,
@@ -1237,8 +1466,20 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
               }
             }
           }
+          log({
+            type: "gather_dig_start",
+            item,
+            block: normalizeItemName(digBlock.name),
+            heldItem: normalizeItemName(bot.heldItem?.name || "")
+          });
           await bot.dig(digBlock, true);
         } catch (e) {
+          markTargetFailed();
+          log({
+            type: "gather_dig_error",
+            item,
+            error: String(e)
+          });
           const waitedDigFail = await waitTicks(bot, 4, runCtx);
           if (!waitedDigFail) return { ok: false, status: "cancel" };
           continue;
@@ -1246,8 +1487,16 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
 
         const waited = await waitTicks(bot, 2, runCtx);
         if (!waited) return { ok: false, status: "cancel" };
-        if (inventoryCount(bot, item) > before) {
+        const afterImmediate = inventoryCount(bot, item);
+        if (afterImmediate > before) {
           gatheredThisLoop = true;
+          clearTargetFail();
+          log({
+            type: "gather_dig_result",
+            item,
+            result: "ok",
+            gained: afterImmediate - before
+          });
           reportProgress(runCtx, `gathered ${item}`, {
             stepAction: "gather_block",
             gatherRingIndex: ringIndex + 1,
@@ -1255,22 +1504,107 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
           });
           break;
         }
-        if (strictToolGate && activeRequirement) {
-          const blockName = normalizeItemName(block.name);
-          const needTool = minimumToolName(activeRequirement) || `${activeRequirement.minTier || "wooden"}_${activeRequirement.toolType}`;
+        const postDigBlock = bot.blockAt(block.position);
+        const postDigName = normalizeItemName(postDigBlock?.name || "");
+        const blockCleared =
+          !postDigBlock ||
+          postDigBlock.boundingBox === "empty" ||
+          postDigName === "air" ||
+          postDigName === "cave_air" ||
+          postDigName === "void_air";
+
+        if (blockCleared) {
           log({
-            type: "gather_tool_incompatible",
+            type: "gather_dig_result",
             item,
-            block: blockName,
-            needTool
+            result: "block_broken_wait_pickup",
+            heldItem: normalizeItemName(bot.heldItem?.name || "")
           });
-          return {
-            ok: false,
-            code: "gather_tool_incompatible",
-            reason: `need ${needTool} for ${blockName}`,
-            nextNeed: `craft ${needTool}`,
-            recoverable: false
-          };
+          const waitedPickup = await waitTicks(bot, 12, runCtx);
+          if (!waitedPickup) return { ok: false, status: "cancel" };
+          const afterPickup = inventoryCount(bot, item);
+          if (afterPickup > before) {
+            gatheredThisLoop = true;
+            clearTargetFail();
+            log({
+              type: "gather_dig_result",
+              item,
+              result: "ok_after_pickup_wait",
+              gained: afterPickup - before
+            });
+            reportProgress(runCtx, `gathered ${item}`, {
+              stepAction: "gather_block",
+              gatherRingIndex: ringIndex + 1,
+              attempt
+            });
+            break;
+          }
+          const movedForPickup = await moveNearWithReasoning(
+            bot,
+            block.position,
+            1,
+            Math.min(dynamicMoveTimeoutMs, 6000),
+            runCtx,
+            cfg,
+            log,
+            "gather_drop_pickup_move"
+          );
+          if (movedForPickup) {
+            const waitedClosePickup = await waitTicks(bot, 8, runCtx);
+            if (!waitedClosePickup) return { ok: false, status: "cancel" };
+            const afterClosePickup = inventoryCount(bot, item);
+            if (afterClosePickup > before) {
+              gatheredThisLoop = true;
+              clearTargetFail();
+              log({
+                type: "gather_dig_result",
+                item,
+                result: "ok_after_close_pickup",
+                gained: afterClosePickup - before
+              });
+              reportProgress(runCtx, `gathered ${item}`, {
+                stepAction: "gather_block",
+                gatherRingIndex: ringIndex + 1,
+                attempt
+              });
+              break;
+            }
+          }
+          markTargetFailed();
+          log({
+            type: "gather_dig_result",
+            item,
+            result: "no_pickup_after_break",
+            heldItem: normalizeItemName(bot.heldItem?.name || "")
+          });
+          continue;
+        }
+        markTargetFailed();
+        log({
+          type: "gather_dig_result",
+          item,
+          result: "no_yield_block_intact",
+          heldItem: normalizeItemName(bot.heldItem?.name || "")
+        });
+        if (strictToolGate && activeRequirement) {
+          const held = normalizeItemName(bot.heldItem?.name || "");
+          if (!isToolSufficient(held, activeRequirement)) {
+            const blockName = normalizeItemName(block.name);
+            const needTool = minimumToolName(activeRequirement) || `${activeRequirement.minTier || "wooden"}_${activeRequirement.toolType}`;
+            log({
+              type: "gather_tool_incompatible",
+              item,
+              block: blockName,
+              needTool
+            });
+            return {
+              ok: false,
+              code: "gather_tool_incompatible",
+              reason: `need ${needTool} for ${blockName}`,
+              nextNeed: `craft ${needTool}`,
+              recoverable: false
+            };
+          }
         }
       }
 
@@ -1278,6 +1612,15 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
     }
 
     if (!gatheredThisLoop) {
+      if (sawAnyCandidate) {
+        return {
+          ok: false,
+          code: "path_blocked",
+          reason: `can't reach ${item} source (within ${maxRing})`,
+          nextNeed: "move to open area near target blocks",
+          recoverable: true
+        };
+      }
       const fromRadius = maxRing;
       const toRadius = Math.max(fromRadius + 1, Number(cfg.missingResourceExpandedRadius || 120));
       if (String(cfg.missingResourcePolicy || "ask_before_move").toLowerCase() === "ask_before_move") {

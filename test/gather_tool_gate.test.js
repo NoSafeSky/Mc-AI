@@ -121,3 +121,32 @@ test("gather step fails explicitly when required tool is missing", async () => {
   assert.equal(result.code, "missing_required_tool");
   assert.equal(events.some((e) => e.type === "gather_tool_missing"), true);
 });
+
+test("gather step with valid pickaxe does not fail as tool_incompatible on no immediate pickup", async () => {
+  const { bot } = makeBot({ hasPickaxe: true });
+  bot.dig = async function () {
+    // Simulate protected/odd server behavior: no inventory change even after dig call.
+  };
+
+  const result = await __test.gatherBlockStep(
+    bot,
+    {
+      item: "cobblestone",
+      count: 1,
+      blockNames: ["stone"],
+      preferredBlocks: ["stone"]
+    },
+    {
+      strictHarvestToolGate: true,
+      autoAcquireRequiredTools: false,
+      gatherRadiusSteps: [24],
+      gatherExpandRetryPerRing: 1,
+      gatherStepTimeoutSec: 12000
+    },
+    runCtx(),
+    () => {}
+  );
+
+  assert.equal(result.ok, false);
+  assert.notEqual(result.code, "gather_tool_incompatible");
+});

@@ -1,34 +1,11 @@
 const fetch = require("node-fetch");
 const { buildOllamaGenerateBody, extractOllamaText } = require("./llm_ollama");
-
-const ALLOWED_ACTIONS = new Set([
-  "explore",
-  "seekVillage",
-  "harvestWood",
-  "craftBasic",
-  "attackHostile",
-  "huntFood",
-  "attackMob",
-  "followOwner",
-  "comeOwner",
-  "wait"
-]);
+const { parseRouteText } = require("./llm_goal_schema");
 
 let lastPlanFailure = null;
 
-function sanitizePlan(plan, cfg) {
-  if (!plan || typeof plan !== "object" || !Array.isArray(plan.steps)) return null;
-  const maxRadius = cfg.maxExploreRadius || 500;
-  const steps = plan.steps
-    .map((s) => ({
-      action: s.action,
-      mobType: typeof s.mobType === "string" ? s.mobType.toLowerCase() : undefined,
-      radius: Math.min(maxRadius, Math.max(32, s.radius || maxRadius)),
-      seconds: Math.min(300, Math.max(5, s.seconds || 30))
-    }))
-    .filter((s) => ALLOWED_ACTIONS.has(s.action));
-  if (!steps.length) return null;
-  return { steps };
+function setLastPlanFailure(failure) {
+  lastPlanFailure = failure || null;
 }
 
 function classifyLlmError(provider, error) {
@@ -43,56 +20,110 @@ function classifyLlmError(provider, error) {
   return "llm_error";
 }
 
-function parseOllamaPlanPayload(data, cfg) {
+function routeValidationOptions(cfg, context = {}) {
+  return {
+    owner: context.owner || cfg.owner || "",
+    maxGoals: cfg.llmPlanMaxGoals || 5,
+    maxExploreRadius: cfg.maxExploreRadius || 500,
+    defaultCraftCount: cfg.craftDefaultCount || 1,
+    version: cfg.version || "1.21.1"
+  };
+}
+
+function parseRoutePayloadText(text, cfg, context = {}) {
+  const parsed = parseRouteText(text, routeValidationOptions(cfg, context));
+  if (!parsed.ok) {
+    setLastPlanFailure({
+      reason: parsed.reasonCode || "invalid_route",
+      provider: context.provider || (cfg.llmProvider || "unknown").toLowerCase(),
+      error: parsed.reason || null
+    });
+    return null;
+  }
+
+  setLastPlanFailure(null);
+  return parsed.value;
+}
+
+function parseOllamaPlanPayload(data, cfg, context = {}) {
   const extracted = extractOllamaText(data);
   if (!extracted.ok) {
-    lastPlanFailure = {
+    setLastPlanFailure({
       reason: extracted.code,
       provider: "ollama",
       hasThinking: extracted.hasThinking
-    };
+    });
     return null;
   }
 
-  try {
-    const parsed = JSON.parse(extracted.text);
-    const safe = sanitizePlan(parsed, cfg);
-    if (!safe) {
-      lastPlanFailure = { reason: "invalid_plan_shape", provider: "ollama" };
-      return null;
-    }
-    return safe;
-  } catch (e) {
-    lastPlanFailure = { reason: "invalid_json", provider: "ollama", error: String(e) };
-    return null;
-  }
+  return parseRoutePayloadText(extracted.text, cfg, {
+    ...context,
+    provider: "ollama"
+  });
 }
 
-async function llmPlan(message, cfg, state) {
-  const provider = (cfg.llmProvider || "groq").toLowerCase();
-  const model = cfg.llmModel || "llama-3.3-70b-versatile";
+function buildSystemPrompt({ allowAction, allowChat, owner }) {
+  const actionLine = allowAction
+    ? "You may return kind=action with goals[]."
+    : "Do not return kind=action.";
+  const chatLine = allowChat
+    ? "You may return kind=chat with reply."
+    : "Do not return kind=chat.";
+
+  return [
+    "You are a Minecraft bot router.",
+    "Return ONLY one valid JSON object. No markdown. No extra text.",
+    actionLine,
+    chatLine,
+    "Allowed kinds: action, chat, reject, none.",
+    "For action use goals with this GoalSpec schema:",
+    '{"type":"craftItem|attackMob|attackHostile|huntFood|follow|come|explore|harvest|stop|stopall|resume|craftBasic","args":{},"priority":0}',
+    "Never output mineflayer API calls or raw code.",
+    `Default owner target is: ${owner || "owner"}.`
+  ].join("\n");
+}
+
+function buildUserPrompt(message, cfg, context = {}) {
+  const maxGoals = cfg.llmPlanMaxGoals || 5;
   const maxRadius = cfg.maxExploreRadius || 500;
-  lastPlanFailure = null;
+  const isOwner = context.isOwner !== false;
+  return [
+    `isOwner=${isOwner}`,
+    `owner=${context.owner || cfg.owner || ""}`,
+    `maxGoals=${maxGoals}`,
+    `maxExploreRadius=${maxRadius}`,
+    `message="${String(message || "").replace(/"/g, "\\\"")}"`,
+    "Examples:",
+    '{"kind":"action","confidence":0.92,"goals":[{"type":"craftItem","args":{"item":"wooden_sword","count":1}}]}',
+    '{"kind":"action","confidence":0.9,"goals":[{"type":"attackMob","args":{"mobType":"pig"}}]}',
+    '{"kind":"chat","confidence":0.88,"reply":"Minecraft is a sandbox game where you gather resources and build things."}',
+    '{"kind":"reject","confidence":0.92,"reasonCode":"unsafe_request"}',
+    '{"kind":"none","confidence":0.1}'
+  ].join("\n");
+}
 
-  const system = `You are a planner for a Minecraft bot. Return ONLY valid JSON.
-Allowed actions: explore, seekVillage, harvestWood, craftBasic, attackHostile, huntFood, attackMob, followOwner, comeOwner, wait.
-Use small number of steps (1-4). No extra text.
-If the message is not actionable or unsafe, return {"steps":[]}.`;
+async function llmPlanRoute(message, cfg, state, context = {}) {
+  const provider = (cfg.llmProvider || "ollama").toLowerCase();
+  const model = cfg.llmModel || "qwen3:14b";
+  const allowAction = context.allowAction !== false;
+  const allowChat = context.allowChat !== false;
 
-  const prompt = `owner=${cfg.owner}
-maxRadius=${maxRadius}
-message="${message}"
-Return JSON like: {"steps":[{"action":"explore","radius":300,"seconds":60}]}
-For "kill a pig" use: {"steps":[{"action":"attackMob","mobType":"pig","seconds":60}]}`;
+  const system = buildSystemPrompt({
+    allowAction,
+    allowChat,
+    owner: context.owner || cfg.owner
+  });
+  const prompt = buildUserPrompt(message, cfg, context);
 
+  const timeoutMs = Number(cfg.llmPlanTimeoutMs || cfg.llmTimeoutMs || 8000);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), cfg.llmTimeoutMs || 3000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     if (provider === "groq") {
       const apiKey = process.env.GROQ_API_KEY;
       if (!apiKey) {
-        lastPlanFailure = { reason: "llm_unavailable", provider };
+        setLastPlanFailure({ reason: "llm_unavailable", provider });
         return null;
       }
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -107,45 +138,47 @@ For "kill a pig" use: {"steps":[{"action":"attackMob","mobType":"pig","seconds":
             { role: "system", content: system },
             { role: "user", content: prompt }
           ],
-          temperature: 0.2
+          temperature: 0.1
         }),
         signal: controller.signal
       });
+
       if (!res.ok) {
-        lastPlanFailure = { reason: "llm_http_error", provider, status: res.status };
+        setLastPlanFailure({ reason: "llm_http_error", provider, status: res.status });
         return null;
       }
+
       const data = await res.json();
       const text = data?.choices?.[0]?.message?.content?.trim() || "";
-      const parsed = JSON.parse(text);
-      return sanitizePlan(parsed, cfg);
+      return parseRoutePayloadText(text, cfg, { ...context, provider });
     }
 
     if (provider === "gemini") {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        lastPlanFailure = { reason: "llm_unavailable", provider };
+        setLastPlanFailure({ reason: "llm_unavailable", provider });
         return null;
       }
+
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const body = {
-        contents: [{ role: "user", parts: [{ text: `${system}\n\n${prompt}` }] }],
-        generationConfig: { temperature: 0.2, responseMimeType: "application/json" }
-      };
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: `${system}\n\n${prompt}` }] }],
+          generationConfig: { temperature: 0.1, responseMimeType: "application/json" }
+        }),
         signal: controller.signal
       });
+
       if (!res.ok) {
-        lastPlanFailure = { reason: "llm_http_error", provider, status: res.status };
+        setLastPlanFailure({ reason: "llm_http_error", provider, status: res.status });
         return null;
       }
+
       const data = await res.json();
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
-      const parsed = JSON.parse(text);
-      return sanitizePlan(parsed, cfg);
+      return parseRoutePayloadText(text, cfg, { ...context, provider });
     }
 
     const mode = (cfg.ollamaRequestMode || "stable").toLowerCase();
@@ -154,7 +187,7 @@ For "kill a pig" use: {"steps":[{"action":"attackMob","mobType":"pig","seconds":
       model,
       system,
       prompt,
-      temperature: 0.2,
+      temperature: 0.1,
       disableThinking
     });
 
@@ -164,26 +197,93 @@ For "kill a pig" use: {"steps":[{"action":"attackMob","mobType":"pig","seconds":
       body: JSON.stringify(body),
       signal: controller.signal
     });
+
     if (!res.ok) {
-      lastPlanFailure = { reason: "llm_http_error", provider, status: res.status };
+      setLastPlanFailure({ reason: "llm_http_error", provider, status: res.status });
       return null;
     }
+
     const data = await res.json();
-    return parseOllamaPlanPayload(data, cfg);
-  } catch (e) {
-    lastPlanFailure = {
-      reason: classifyLlmError(provider, e),
+    return parseOllamaPlanPayload(data, cfg, context);
+  } catch (error) {
+    setLastPlanFailure({
+      reason: classifyLlmError(provider, error),
       provider,
-      error: String(e)
-    };
+      error: String(error)
+    });
     return null;
   } finally {
     clearTimeout(timeout);
   }
 }
 
+function goalToLegacyStep(goal, cfg) {
+  if (!goal || typeof goal !== "object") return null;
+  const type = goal.type;
+  const args = goal.args || {};
+
+  if (type === "follow") return { action: "followOwner" };
+  if (type === "come") return { action: "comeOwner" };
+  if (type === "harvest") return { action: "harvestWood" };
+  if (type === "craftBasic") return { action: "craftBasic" };
+  if (type === "craftItem") return { action: "craftBasic" };
+  if (type === "attackMob") return { action: "attackMob", mobType: args.mobType || "pig" };
+  if (type === "attackHostile") return { action: "attackHostile" };
+  if (type === "huntFood") return { action: "huntFood" };
+  if (type === "explore") {
+    return {
+      action: "explore",
+      radius: clamp(args.radius, 32, cfg.maxExploreRadius || 500, 128),
+      seconds: clamp(args.seconds, 5, 300, 45)
+    };
+  }
+  if (type === "stop" || type === "stopall" || type === "resume") {
+    return { action: "wait", seconds: 1 };
+  }
+
+  return null;
+}
+
+async function llmPlan(message, cfg, state) {
+  const route = await llmPlanRoute(message, cfg, state, {
+    owner: cfg.owner,
+    isOwner: true,
+    allowAction: true,
+    allowChat: false
+  });
+
+  if (!route) return null;
+  if (route.kind !== "action") {
+    setLastPlanFailure({
+      reason: route.reasonCode || "non_action_route",
+      provider: (cfg.llmProvider || "unknown").toLowerCase()
+    });
+    return null;
+  }
+
+  const steps = (route.goals || [])
+    .map((goal) => goalToLegacyStep(goal, cfg))
+    .filter(Boolean);
+
+  if (!steps.length) {
+    setLastPlanFailure({
+      reason: "invalid_plan_shape",
+      provider: (cfg.llmProvider || "unknown").toLowerCase()
+    });
+    return null;
+  }
+
+  setLastPlanFailure(null);
+  return { steps };
+}
+
 function getLastPlanFailure() {
   return lastPlanFailure;
 }
 
-module.exports = { llmPlan, getLastPlanFailure, parseOllamaPlanPayload };
+module.exports = {
+  llmPlan,
+  llmPlanRoute,
+  getLastPlanFailure,
+  parseOllamaPlanPayload
+};

@@ -4,14 +4,12 @@ const mineflayer = require("mineflayer");
 const { pathfinder, Movements } = require("mineflayer-pathfinder");
 const { plugin: collectBlockPlugin } = require("mineflayer-collectblock");
 
-const { parseNLU } = require("./brain/nlu");
 const { planAndRun } = require("./brain/planner");
 const { startAutonomy } = require("./brain/autonomy");
 const { isLivingNonPlayerEntity, getCanonicalEntityName } = require("./brain/entities");
 const { buildGoalPlan } = require("./brain/dependency_planner");
-const { buildUnavailableReply } = require("./brain/chat_fallback");
-const { isRecipeQuestion, resolveRecipeAnswer } = require("./brain/recipe_qa");
-const { buildCapabilitySnapshot } = require("./brain/knowledge");
+const { routePromptWithLLM, getLastRouteFailure } = require("./brain/llm_router");
+const { compileGoalSpecsToIntents } = require("./brain/goal_compiler");
 
 const cfg = Object.assign(
   {
@@ -19,6 +17,14 @@ const cfg = Object.assign(
     commandNoPrefixOwner: true,
     intentConfidenceThreshold: 0.72,
     llmPrimaryRouting: true,
+    llmRouteAllOwnerPrompts: true,
+    llmRouteNonOwnerChat: true,
+    llmPlanMode: "high_level_goals",
+    llmActionMinConfidence: 0.7,
+    llmChatMinConfidence: 0.55,
+    llmPlanMaxGoals: 5,
+    llmRequireStrictJson: true,
+    llmPlanTimeoutMs: 8000,
     structuredAck: true,
     taskTimeoutSec: 60,
     taskNoProgressTimeoutSec: 45,
@@ -29,7 +35,7 @@ const cfg = Object.assign(
     craftGatherRadius: 48,
     craftAutoPlaceTable: true,
     craftDefaultCount: 1,
-    cancelOnNewCommand: true,
+    cancelOnNewCommand: false,
     reasoningEnabled: true,
     reasoningPlacementRings: [4, 8, 12],
     reasoningMaxCorrectionsPerStep: 6,
@@ -50,6 +56,9 @@ const cfg = Object.assign(
     recipeVariantCapPerItem: 32,
     autoGatherEnabled: true,
     autoGatherRadius: 48,
+    gatherBlockSampleCount: 128,
+    gatherTargetCandidates: 6,
+    gatherTargetFailLimit: 2,
     gatherRadiusSteps: [24, 48, 72],
     gatherStepTimeoutSec: 12000,
     gatherExpandRetryPerRing: 2,
@@ -59,7 +68,6 @@ const cfg = Object.assign(
     reasoningStepTimeoutMs: 12000,
     commandAckTimeoutMs: 1000,
     chatReplyMode: "short",
-    chatReplyFallbackEnabled: true,
     chatReplyTimeoutMs: 30000,
     recipeQuestionMode: "deterministic",
     recipeQuestionNoAction: true,
@@ -80,6 +88,8 @@ const cfg = Object.assign(
     ollamaRequestMode: "stable",
     logReasonerCandidateRejects: false,
     logReasonerRejectSummaryEverySec: 5,
+    logCompactMode: true,
+    logMuteEvents: [],
     logMobSpawns: false,
     logEntityPackets: false
   },
@@ -92,8 +102,6 @@ if (!fs.existsSync(memoryDir)) fs.mkdirSync(memoryDir, { recursive: true });
 const statePath = path.join(memoryDir, "state.json");
 const logPath = path.join(memoryDir, "log.jsonl");
 
-const { llmParseIntent } = require("./brain/llm_nlu");
-const { llmChatReply, getLastChatFailure } = require("./brain/llm_chat");
 const { inventoryCount } = require("./brain/craft_executor");
 
 
@@ -108,7 +116,33 @@ function loadState() {
 function saveState(state) {
   fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
 }
+
+const DEFAULT_MUTED_LOG_TYPES = new Set([
+  "task_progress",
+  "step_progress",
+  "need_acquire_start",
+  "need_acquire_ok",
+  "reasoner_try",
+  "reasoner_reject_summary"
+]);
+
+const configuredMutedTypes = new Set(
+  Array.isArray(cfg.logMuteEvents)
+    ? cfg.logMuteEvents.map((x) => String(x || "").trim()).filter(Boolean)
+    : []
+);
+
+function shouldPersistLog(evt) {
+  if (!evt || typeof evt !== "object") return false;
+  const t = String(evt.type || evt.event || "").trim();
+  if (!t) return true;
+  if (configuredMutedTypes.has(t)) return false;
+  if (cfg.logCompactMode !== false && DEFAULT_MUTED_LOG_TYPES.has(t)) return false;
+  return true;
+}
+
 function log(evt) {
+  if (!shouldPersistLog(evt)) return;
   fs.appendFileSync(logPath, JSON.stringify({ t: Date.now(), ...evt }) + "\n");
 }
 
@@ -136,11 +170,8 @@ function logLlmFailureSignal(provider, failure, extra = {}) {
 }
 
 let state = loadState();
-let lastChatAt = 0;
 const recentMessages = new Map();
 const DUP_WINDOW_MS = 3000;
-const pendingSystem = new Map();
-let lastReplyAt = 0;
 const chatMemory = new Map();
 const chatMemorySize = cfg.chatMemorySize || 6;
 const recentRawSpawns = [];
@@ -186,6 +217,11 @@ function isActionableIntent(intent) {
   return true;
 }
 
+function isStopIntent(intent) {
+  const type = String(intent?.type || "").toLowerCase();
+  return type === "stop" || type === "stopall";
+}
+
 function intentSummary(intent) {
   const source = intent.source || "rules";
   if (intent.type === "attackMob" && intent.mobType) return `intent: attackMob ${intent.mobType} (${source})`;
@@ -196,6 +232,26 @@ function intentSummary(intent) {
     return `intent: craftItem ${intent.item} x${intent.count || 1} (${source})${needs}`;
   }
   return `intent: ${intent.type} (${source})`;
+}
+
+function summarizeGoal(goal) {
+  if (!goal || typeof goal !== "object") return "unknown";
+  const type = String(goal.type || "unknown");
+  const args = goal.args && typeof goal.args === "object" ? goal.args : {};
+  if (type === "craftItem") return `craftItem:${args.item || "?"}x${args.count || 1}`;
+  if (type === "attackMob") return `attackMob:${args.mobType || "?"}`;
+  if (type === "explore") return `explore:r${args.radius || "?"}/s${args.seconds || "?"}`;
+  if (type === "follow" || type === "come") return `${type}:${args.target || "owner"}`;
+  return type;
+}
+
+function summarizeIntent(intent) {
+  if (!intent || typeof intent !== "object") return "unknown";
+  if (intent.type === "craftItem") return `craftItem:${intent.item || "?"}x${intent.count || 1}`;
+  if (intent.type === "attackMob") return `attackMob:${intent.mobType || "?"}`;
+  if (intent.type === "explore") return `explore:r${intent.radius || "?"}/s${intent.seconds || "?"}`;
+  if (intent.type === "follow" || intent.type === "come") return `${intent.type}:${intent.target || "owner"}`;
+  return intent.type || "unknown";
 }
 
 function clearPendingDecision() {
@@ -283,6 +339,169 @@ bot.once("spawn", () => {
   bot.pathfinder.setMovements(baseMovements);
   startAutonomy(bot, () => state, (s) => { state = s; saveState(state); }, log, cfg);
 });
+
+function updateChatMemory(username, role, text) {
+  if (!username) return;
+  const content = String(text || "").trim();
+  if (!content) return;
+  const mem = chatMemory.get(username) || [];
+  mem.push({ role, text: content });
+  while (mem.length > chatMemorySize) mem.shift();
+  chatMemory.set(username, mem);
+}
+
+function routeRejectMessage(reasonCode) {
+  const code = String(reasonCode || "unsupported_request").toLowerCase();
+  if (code.includes("unsafe")) return "can't: unsafe request";
+  if (code.includes("unknown_craft_target")) return "can't: unknown craft target";
+  if (code.includes("unknown_target")) return "can't: unknown target";
+  if (code.includes("too_many_goals")) return "can't: request too broad";
+  return "can't: unsupported request";
+}
+
+function previewCraftIntent(intent, username, text) {
+  if (!isActionableIntent(intent)) return intent;
+  if (
+    intent.type !== "craftItem" ||
+    cfg.intelligenceEnabled === false ||
+    cfg.dependencyPlannerEnabled === false
+  ) {
+    return intent;
+  }
+
+  const preview = buildGoalPlan(bot, intent, cfg, null, () => {});
+  if (!preview?.ok) {
+    const reason = preview?.code || "unsupported_craft_target";
+    const rejected = {
+      type: "none",
+      source: intent.source || "llm",
+      confidence: 0,
+      reason: reason === "unknown_craft_target" ? "unknown_craft_target" : "unsupported_craft_target",
+      plannerCode: preview?.code || null,
+      requested: intent.item || null
+    };
+    log({
+      type: "intent_reject",
+      from: username,
+      reason: rejected.reason,
+      plannerCode: preview?.code || null,
+      plannerReason: preview?.reason || null,
+      nextNeed: preview?.nextNeed || null,
+      requested: rejected.requested,
+      text
+    });
+    return rejected;
+  }
+
+  if (!intent.gatherRadiusOverride && !intent.previewNeeds) {
+    intent.goalId = preview.goalId;
+    intent.constraints = preview.constraints;
+    intent.previewNeeds = preview.needs;
+    lastGoalPreview = preview;
+  }
+  return intent;
+}
+
+async function executeIntentTask(intent, isOwner) {
+  const runCtx = {
+    id: ++taskSeq,
+    intentType: intent.type,
+    goalId: intent.goalId || null,
+    startedAt: Date.now(),
+    currentStepId: null,
+    currentStepAction: null,
+    lastProgressAt: Date.now(),
+    lastProgressMsg: "task started",
+    attempt: 0,
+    gatherRingIndex: null,
+    status: "running",
+    cancelled: false,
+    preplannedGoal: intent.type === "craftItem" && !intent.gatherRadiusOverride && lastGoalPreview?.ok ? lastGoalPreview : null,
+    isCancelled() {
+      return this.cancelled;
+    }
+  };
+
+  if (cfg.structuredAck) {
+    const ackStarted = Date.now();
+    bot.chat(intentSummary(intent));
+    const ackLatencyMs = Date.now() - ackStarted;
+    log({ type: "command_ack", taskId: runCtx.id, intent: intent.type, latencyMs: ackLatencyMs });
+    if (ackLatencyMs > (cfg.commandAckTimeoutMs || 1000)) {
+      log({ type: "command_ack_late", taskId: runCtx.id, intent: intent.type, latencyMs: ackLatencyMs });
+    }
+  }
+
+  activeTask = runCtx;
+
+  try {
+    const taskResult = await planAndRun(bot, intent, () => state, (s) => { state = s; saveState(state); }, log, cfg, runCtx);
+    if (taskResult?.status === "fail" && taskResult?.code === "confirm_expand_search" && isOwner) {
+      const item = String(taskResult?.meta?.item || intent.item || "resource");
+      const fromRadius = Math.max(
+        1,
+        Number(taskResult?.meta?.fromRadius || (Array.isArray(cfg.gatherRadiusSteps) ? cfg.gatherRadiusSteps[cfg.gatherRadiusSteps.length - 1] : cfg.autoGatherRadius || 48))
+      );
+      const toRadius = Math.max(fromRadius + 1, Number(taskResult?.meta?.toRadius || cfg.missingResourceExpandedRadius || 120));
+      const ttlMs = Math.max(1000, Number(cfg.missingResourceConfirmTimeoutSec || 12) * 1000);
+      pendingDecision = {
+        kind: "expand_search",
+        taskId: runCtx.id,
+        goalId: runCtx.goalId || intent.goalId || null,
+        item,
+        fromRadius,
+        toRadius,
+        expiresAt: Date.now() + ttlMs,
+        resumeIntent: {
+          ...intent,
+          goalId: null,
+          previewNeeds: null,
+          gatherRadiusOverride: toRadius
+        }
+      };
+      schedulePendingDecisionTimeout();
+      log({
+        type: "confirm_expand_search_prompt",
+        taskId: runCtx.id,
+        goalId: runCtx.goalId || intent.goalId || null,
+        item,
+        fromRadius,
+        toRadius
+      });
+      bot.chat(`can't find ${item} within ${fromRadius}. expand to ${toRadius} and continue? (yes/no)`);
+      return { status: "pending_confirm", taskId: runCtx.id };
+    }
+
+    if (taskResult?.status === "fail" || taskResult?.status === "timeout") {
+      lastTaskFailure = {
+        at: Date.now(),
+        taskId: runCtx.id,
+        intent: intent.type,
+        code: taskResult.code || null,
+        reason: taskResult.reason || "failed",
+        nextNeed: taskResult.nextNeed || null
+      };
+    }
+
+    return taskResult || { status: "fail", reason: "unknown task result" };
+  } catch (e) {
+    lastTaskFailure = {
+      at: Date.now(),
+      taskId: runCtx.id,
+      intent: intent.type,
+      code: "exception",
+      reason: String(e),
+      nextNeed: null
+    };
+    bot.chat("can't: unsupported request");
+    log({ type: "error", where: "planAndRun", e: String(e) });
+    return { status: "fail", code: "exception", reason: String(e) };
+  } finally {
+    if (activeTask && activeTask.id === runCtx.id) {
+      activeTask = null;
+    }
+  }
+}
 
 async function handleChat(username, message, source = "chat") {
   if (username === bot.username) return;
@@ -385,8 +604,18 @@ async function handleChat(username, message, source = "chat") {
   }
 
   if (isOwner && lower.includes("!llm test")) {
-    const reply = await llmChatReply("say hello", cfg);
-    if (reply) bot.chat(reply);
+    const mem = chatMemory.get(username) || [];
+    const route = await routePromptWithLLM("say hello", cfg, state, {
+      isOwner: true,
+      owner: cfg.owner,
+      username,
+      history: mem
+    });
+    if (route.kind === "chat" && route.reply) {
+      bot.chat(route.reply);
+    } else {
+      bot.chat("can't: llm route unavailable");
+    }
     return;
   }
 
@@ -509,330 +738,204 @@ async function handleChat(username, message, source = "chat") {
     return;
   }
 
-  const recipeQaEnabled = (cfg.recipeQuestionMode || "deterministic").toLowerCase() === "deterministic";
-  if (recipeQaEnabled && isRecipeQuestion(clean)) {
-    const snapshot = buildCapabilitySnapshot(bot, cfg);
-    const answer = resolveRecipeAnswer(clean, bot.version || cfg.version || "1.21.1", cfg, snapshot);
-    if (answer.ok) {
-      bot.chat(answer.reply);
-      log({
-        type: "recipe_question_handled",
-        from: username,
-        text: clean,
-        item: answer.item,
-        station: answer.station,
-        variants: answer.variants
-      });
-    } else {
-      bot.chat("can't: unknown recipe target");
-      log({
-        type: "recipe_question_unknown",
-        from: username,
-        text: clean,
-        reason: answer.reason,
-        rawTarget: answer.rawTarget || null
-      });
-    }
-    if (cfg.recipeQuestionNoAction !== false) {
-      return;
-    }
-  }
+  const commandText = isOwner ? ownerCommandText : clean;
+  const history = chatMemory.get(username) || [];
 
-  let intent = { type: "none", source: "rules", confidence: 0 };
+  let intents = [];
+  let route = null;
+  let compileFailure = null;
 
   if (forcedIntent) {
-    intent = forcedIntent;
+    const preparedForced = previewCraftIntent(forcedIntent, username, commandText);
+    if (isActionableIntent(preparedForced)) intents.push(preparedForced);
     log({
       type: "intent_decision",
       from: username,
-      text: ownerCommandText,
-      intent,
+      text: commandText,
+      intent: preparedForced,
       threshold: cfg.intentConfidenceThreshold || 0.72,
       resumed: true
     });
-  } else if (isOwner && ownerCommandText) {
-    const confidenceThreshold = cfg.intentConfidenceThreshold || 0.72;
-    const llmPrimaryRouting = cfg.llmPrimaryRouting !== false;
-    const ruleIntent = parseNLU(ownerCommandText, cfg, bot);
-    intent = ruleIntent;
-
-    let llmIntent = null;
-    if (llmPrimaryRouting) {
-      llmIntent = await llmParseIntent(ownerCommandText, cfg, state);
-      if (llmIntent?.unavailable) {
-        log({
-          type: "llm_unavailable",
-          provider: cfg.llmProvider,
-          reason: llmIntent.reason || "unavailable",
-          reasonCode: llmIntent.reason || "unavailable",
-          status: llmIntent.status,
-          error: llmIntent.error
-        });
-        logLlmFailureSignal(cfg.llmProvider, llmIntent, { where: "intent" });
-      }
-      if (llmIntent && llmIntent.type !== "none" && (llmIntent.confidence || 0) >= confidenceThreshold) {
-        intent = llmIntent;
-      }
-    }
-
-    const shouldTryLLMFallback = !llmPrimaryRouting
-      && (ruleIntent.type === "none" || (ruleIntent.confidence || 0) < confidenceThreshold)
-      && looksActionable(ownerCommandText);
-    if (shouldTryLLMFallback) {
-      llmIntent = await llmParseIntent(ownerCommandText, cfg, state);
-      if (llmIntent?.unavailable) {
-        log({
-          type: "llm_unavailable",
-          provider: cfg.llmProvider,
-          reason: llmIntent.reason || "unavailable",
-          reasonCode: llmIntent.reason || "unavailable",
-          status: llmIntent.status,
-          error: llmIntent.error
-        });
-        logLlmFailureSignal(cfg.llmProvider, llmIntent, { where: "intent" });
-      }
-      if (llmIntent && llmIntent.type !== "none" && (llmIntent.confidence || 0) >= confidenceThreshold) {
-        intent = llmIntent;
-      }
-    }
-
-    if (
-      intent.type === "none" &&
-      looksActionable(ownerCommandText) &&
-      ruleIntent.reason !== "ambiguous_target" &&
-      ruleIntent.reason !== "unsupported_craft_item" &&
-      ruleIntent.reason !== "unknown_craft_target" &&
-      ruleIntent.reason !== "recipe_question"
-    ) {
-      intent = {
-        type: "freeform",
-        message: ownerCommandText,
-        source: "rules",
-        confidence: confidenceThreshold
-      };
+  } else if (commandText && ((isOwner && cfg.llmRouteAllOwnerPrompts !== false) || (!isOwner && cfg.llmRouteNonOwnerChat !== false))) {
+    log({
+      type: "llm_route_start",
+      from: username,
+      text: commandText,
+      owner: isOwner
+    });
+    route = await routePromptWithLLM(commandText, cfg, state, {
+      isOwner,
+      owner: cfg.owner,
+      username,
+      history
+    });
+    const routeFailure = getLastRouteFailure();
+    if (routeFailure?.reason) {
+      log({
+        type: "llm_route_provider_error",
+        from: username,
+        provider: routeFailure.provider || cfg.llmProvider,
+        reasonCode: routeFailure.reason,
+        where: routeFailure.where || "route",
+        status: routeFailure.status,
+        error: routeFailure.error
+      });
+      logLlmFailureSignal(routeFailure.provider || cfg.llmProvider, routeFailure, {
+        where: routeFailure.where || "route",
+        from: username
+      });
     }
 
     log({
-      type: "intent_decision",
+      type: "llm_route_result",
       from: username,
-      text: ownerCommandText,
-      intent,
-      threshold: confidenceThreshold,
-      llmPrimaryRouting,
-      llmIntentType: llmIntent?.type || null
+      text: commandText,
+      kind: route?.kind || "none",
+      confidence: route?.confidence || 0,
+      reasonCode: route?.reasonCode || null,
+      goalCount: Array.isArray(route?.goals) ? route.goals.length : 0,
+      goals: Array.isArray(route?.goals) ? route.goals.slice(0, 5).map(summarizeGoal) : [],
+      llmReply: typeof route?.reply === "string" ? route.reply : null
     });
 
-  }
+    if (route?.kind === "chat" && route.reply) {
+      bot.chat(route.reply);
+      updateChatMemory(username, "user", clean);
+      updateChatMemory(username, "bot", route.reply);
+      log({ type: "llm_chat_sent", to: username, reply: route.reply });
+      return;
+    }
 
-  if (
-    isOwner &&
-    intent.type === "craftItem" &&
-    cfg.intelligenceEnabled !== false &&
-    cfg.dependencyPlannerEnabled !== false
-  ) {
-    const preview = buildGoalPlan(bot, intent, cfg, null, () => {});
-    if (!preview?.ok) {
-      const reason = preview?.code || "unsupported_craft_target";
-      intent = {
-        type: "none",
-        source: intent.source || "rules",
-        confidence: 0,
-        reason: reason === "unknown_craft_target" ? "unknown_craft_target" : "unsupported_craft_target",
-        plannerCode: preview?.code || null,
-        requested: intent.item || null
-      };
-      log({
-        type: "intent_reject",
-        from: username,
-        reason: intent.reason,
-        plannerCode: preview?.code || null,
-        plannerReason: preview?.reason || null,
-        nextNeed: preview?.nextNeed || null,
-        requested: intent.requested
+    if (route?.kind === "reject") {
+      const reasonCode = route.reasonCode || "unsupported_request";
+      log({ type: "llm_route_reject", from: username, reasonCode, confidence: route.confidence || 0 });
+      if (isOwner) {
+        bot.chat(routeRejectMessage(reasonCode));
+      }
+      return;
+    }
+
+    if (route?.kind === "action") {
+      const compiled = compileGoalSpecsToIntents(route.goals || [], bot, cfg, {
+        source: "llm",
+        confidence: route.confidence || 0.8
       });
-    } else if (!intent.gatherRadiusOverride && !intent.previewNeeds) {
-      intent.goalId = preview.goalId;
-      intent.constraints = preview.constraints;
-      intent.previewNeeds = preview.needs;
-      lastGoalPreview = preview;
-    }
-  }
-
-  if (!isActionableIntent(intent)) {
-    if (isOwner && looksActionable(ownerCommandText) && intent.reason === "ambiguous_target") {
-      bot.chat("can't: specify mob target");
-      log({ type: "intent_reject", from: username, reason: "ambiguous_target", text: ownerCommandText });
-      return;
-    }
-    if (isOwner && looksActionable(ownerCommandText) && intent.reason === "unknown_craft_target") {
-      bot.chat("can't: unknown craft target");
-      log({ type: "intent_reject", from: username, reason: "unknown_craft_target", text: ownerCommandText, requested: intent.requested || null });
-      return;
-    }
-    if (isOwner && looksActionable(ownerCommandText) && intent.reason === "unsupported_craft_target") {
-      bot.chat("can't: unsupported craft target");
-      log({
-        type: "intent_reject",
-        from: username,
-        reason: "unsupported_craft_target",
-        plannerCode: intent.plannerCode || null,
-        text: ownerCommandText,
-        requested: intent.requested || null
-      });
-      return;
-    }
-
-    if (cfg.chatEnabled) {
-      if ((cfg.chatReplyMode || "short") === "off") return;
-      const now = Date.now();
-      const chatCooldownMs = cfg.chatCooldownMs || 10000;
-      const effectiveCooldownMs = isOwner ? 0 : chatCooldownMs;
-      const canCallLLM = now - lastChatAt > effectiveCooldownMs && now - lastReplyAt > effectiveCooldownMs;
-      if (canCallLLM) {
-        const mem = chatMemory.get(username) || [];
-        lastChatAt = now;
-        mem.push({ role: "user", text: clean });
-        const reply = await llmChatReply(message, cfg, mem, {
-          timeoutMs: cfg.chatReplyTimeoutMs || cfg.llmTimeoutMs || 3000,
-          maxTokens: Math.min(cfg.chatMaxTokens || 80, 48)
+      if (!compiled.ok) {
+        compileFailure = compiled;
+        log({
+          type: "llm_goal_compile_fail",
+          from: username,
+          reasonCode: compiled.reasonCode,
+          reason: compiled.reason,
+          index: compiled.index
         });
-        if (reply) {
-          bot.chat(reply);
-          lastReplyAt = now;
-          mem.push({ role: "bot", text: reply });
-          while (mem.length > chatMemorySize) mem.shift();
-          chatMemory.set(username, mem);
-          log({ type: "chat_reply", to: username, reply, source: "llm" });
-        } else {
-          const failure = getLastChatFailure() || { reason: "llm_empty_or_unavailable", provider: cfg.llmProvider };
-          log({
-            type: "chat_no_reply",
-            to: username,
-            reason: "llm_empty_or_unavailable",
-            reasonCode: failure.reason || "llm_empty_or_unavailable",
-            provider: failure.provider || cfg.llmProvider,
-            status: failure.status
-          });
-          logLlmFailureSignal(failure.provider || cfg.llmProvider, failure, { where: "chat", to: username });
-          const fallback = cfg.chatReplyFallbackEnabled === false ? null : buildUnavailableReply(clean);
-          if (fallback && (cfg.chatReplyMode || "short") === "short") {
-            bot.chat(fallback);
-            lastReplyAt = now;
-            mem.push({ role: "bot", text: fallback });
-            while (mem.length > chatMemorySize) mem.shift();
-            chatMemory.set(username, mem);
-            log({ type: "chat_reply", to: username, reply: fallback, source: "fallback_unavailable" });
-          }
-        }
       } else {
-        log({ type: "chat_skip_cooldown", to: username, cooldownMs: effectiveCooldownMs });
+        intents = compiled.intents;
+        log({
+          type: "llm_goal_compile_ok",
+          from: username,
+          goalCount: (route.goals || []).length,
+          intentCount: intents.length,
+          intents: intents.map(summarizeIntent)
+        });
+      }
+    }
+  }
+
+  if (!intents.length) {
+    if (compileFailure && isOwner) {
+      bot.chat(routeRejectMessage(compileFailure.reasonCode));
+      return;
+    }
+    if (cfg.chatEnabled && (cfg.chatReplyMode || "short") !== "off") {
+      const routeFailure = getLastRouteFailure();
+      if (routeFailure?.reason) {
+        log({
+          type: "chat_no_reply",
+          to: username,
+          reason: "llm_empty_or_unavailable",
+          reasonCode: routeFailure.reason,
+          provider: routeFailure.provider || cfg.llmProvider,
+          status: routeFailure.status
+        });
       }
     }
     return;
   }
 
   if (!isOwner) {
-    log({ type: "intent_reject", from: username, reason: "not_owner", intent });
+    log({ type: "intent_reject", from: username, reason: "not_owner", intents });
     return;
   }
 
-  if (cfg.cancelOnNewCommand && activeTask) {
-    activeTask.cancelled = true;
-    log({ type: "task_cancel", taskId: activeTask.id, reason: "new_command" });
-  }
+  for (const rawIntent of intents) {
+    const intent = previewCraftIntent(rawIntent, username, commandText);
 
-  const runCtx = {
-    id: ++taskSeq,
-    intentType: intent.type,
-    goalId: intent.goalId || null,
-    startedAt: Date.now(),
-    currentStepId: null,
-    currentStepAction: null,
-    lastProgressAt: Date.now(),
-    lastProgressMsg: "task started",
-    attempt: 0,
-    gatherRingIndex: null,
-    status: "running",
-    cancelled: false,
-    preplannedGoal: intent.type === "craftItem" && !intent.gatherRadiusOverride && lastGoalPreview?.ok ? lastGoalPreview : null,
-    isCancelled() {
-      return this.cancelled;
-    }
-  };
-
-  if (cfg.structuredAck) {
-    const ackStarted = Date.now();
-    bot.chat(intentSummary(intent));
-    const ackLatencyMs = Date.now() - ackStarted;
-    log({ type: "command_ack", taskId: runCtx.id, intent: intent.type, latencyMs: ackLatencyMs });
-    if (ackLatencyMs > (cfg.commandAckTimeoutMs || 1000)) {
-      log({ type: "command_ack_late", taskId: runCtx.id, intent: intent.type, latencyMs: ackLatencyMs });
-    }
-  }
-
-  activeTask = runCtx;
-
-  try {
-    const taskResult = await planAndRun(bot, intent, () => state, (s) => { state = s; saveState(state); }, log, cfg, runCtx);
-    if (taskResult?.status === "fail" && taskResult?.code === "confirm_expand_search" && isOwner) {
-      const item = String(taskResult?.meta?.item || intent.item || "resource");
-      const fromRadius = Math.max(
-        1,
-        Number(taskResult?.meta?.fromRadius || (Array.isArray(cfg.gatherRadiusSteps) ? cfg.gatherRadiusSteps[cfg.gatherRadiusSteps.length - 1] : cfg.autoGatherRadius || 48))
-      );
-      const toRadius = Math.max(fromRadius + 1, Number(taskResult?.meta?.toRadius || cfg.missingResourceExpandedRadius || 120));
-      const ttlMs = Math.max(1000, Number(cfg.missingResourceConfirmTimeoutSec || 12) * 1000);
-      pendingDecision = {
-        kind: "expand_search",
-        taskId: runCtx.id,
-        goalId: runCtx.goalId || intent.goalId || null,
-        item,
-        fromRadius,
-        toRadius,
-        expiresAt: Date.now() + ttlMs,
-        resumeIntent: {
-          ...intent,
-          goalId: null,
-          previewNeeds: null,
-          gatherRadiusOverride: toRadius
-        }
-      };
-      schedulePendingDecisionTimeout();
+    if (activeTask && !isStopIntent(intent)) {
       log({
-        type: "confirm_expand_search_prompt",
-        taskId: runCtx.id,
-        goalId: runCtx.goalId || intent.goalId || null,
-        item,
-        fromRadius,
-        toRadius
+        type: "command_ignored_busy",
+        from: username,
+        activeTaskId: activeTask.id,
+        activeIntent: activeTask.intentType,
+        incomingIntent: summarizeIntent(intent)
       });
-      bot.chat(`can't find ${item} within ${fromRadius}. expand to ${toRadius} and continue? (yes/no)`);
+      if (isOwner) {
+        bot.chat(`busy: ${activeTask.intentType}. send stop to interrupt.`);
+      }
       return;
     }
-    if (taskResult?.status === "fail" || taskResult?.status === "timeout") {
-      lastTaskFailure = {
-        at: Date.now(),
-        taskId: runCtx.id,
-        intent: intent.type,
-        code: taskResult.code || null,
-        reason: taskResult.reason || "failed",
-        nextNeed: taskResult.nextNeed || null
-      };
+
+    if (activeTask && isStopIntent(intent)) {
+      activeTask.cancelled = true;
+      log({ type: "task_cancel", taskId: activeTask.id, reason: "stop_command" });
     }
-  } catch (e) {
-    lastTaskFailure = {
-      at: Date.now(),
-      taskId: runCtx.id,
-      intent: intent.type,
-      code: "exception",
-      reason: String(e),
-      nextNeed: null
-    };
-    bot.chat("can't: unsupported request");
-    log({ type: "error", where: "planAndRun", e: String(e) });
-  } finally {
-    if (activeTask && activeTask.id === runCtx.id) {
-      activeTask = null;
+
+    if (!isActionableIntent(intent)) {
+      if (looksActionable(ownerCommandText) && intent.reason === "ambiguous_target") {
+        bot.chat("can't: specify mob target");
+        log({ type: "intent_reject", from: username, reason: "ambiguous_target", text: ownerCommandText });
+        return;
+      }
+      if (looksActionable(ownerCommandText) && intent.reason === "unknown_craft_target") {
+        bot.chat("can't: unknown craft target");
+        log({ type: "intent_reject", from: username, reason: "unknown_craft_target", text: ownerCommandText, requested: intent.requested || null });
+        return;
+      }
+      if (looksActionable(ownerCommandText) && intent.reason === "unsupported_craft_target") {
+        bot.chat("can't: unsupported craft target");
+        log({
+          type: "intent_reject",
+          from: username,
+          reason: "unsupported_craft_target",
+          plannerCode: intent.plannerCode || null,
+          text: ownerCommandText,
+          requested: intent.requested || null
+        });
+      }
+      return;
+    }
+
+    log({
+      type: "intent_decision",
+      from: username,
+      text: ownerCommandText || clean,
+      intent,
+      threshold: cfg.intentConfidenceThreshold || 0.72,
+      llmPrimaryRouting: true,
+      llmIntentType: "goal_compiled"
+    });
+
+    log({
+      type: "llm_to_bot_intent",
+      from: username,
+      text: ownerCommandText || clean,
+      intent: summarizeIntent(intent),
+      rawIntent: intent
+    });
+
+    const taskResult = await executeIntentTask(intent, isOwner);
+    if (!taskResult || taskResult.status !== "success") {
+      return;
     }
   }
 }
