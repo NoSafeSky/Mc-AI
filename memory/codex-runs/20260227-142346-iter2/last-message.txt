@@ -1,0 +1,2 @@
+I’ve identified a likely ingredient-normalization mismatch; now I’ll run focused tests to reproduce it in code. +#+#+#+#+#+assistant to=functions.shell մեկնաբանություն 下载彩神争霸json
+{"command":["powershell.exe","-Command","npm test -- test/craft_executor.test.js"],"workdir":"C:\\Projects\\mc-ai-bot","timeout_ms":120000}

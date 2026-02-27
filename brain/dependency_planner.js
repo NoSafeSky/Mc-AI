@@ -1,10 +1,11 @@
 const { buildCapabilitySnapshot, normalizeItemName } = require("./knowledge");
 const { getAcquisitionOptions } = require("./acquisition_registry");
-const { buildRecipeDb } = require("./recipe_db");
+const { buildRecipeDb, isItemSupportedInCoverage } = require("./recipe_db");
 const {
   normalizePlanningItem,
   equivalentInventoryConsume
 } = require("./item_equivalence");
+const { minimumToolName } = require("./block_compat");
 
 let goalSeq = 0;
 const loggedRecipeDbVersions = new Set();
@@ -178,9 +179,42 @@ function memoKey(ctx, item, missing, depth) {
   return `${item}|${missing}|${depth}|${inventorySignature(ctx.virtualInventory, 24)}`;
 }
 
-function optionSortKey(option) {
-  const total = Number(option.cost || 0) + Number(option.compatibilityScore || 0);
-  return `${String(total).padStart(8, "0")}|${option.provider || ""}|${option.variantId || ""}`;
+function optionCompare(a, b) {
+  const aTotal = Number(a?.cost || 0) + Number(a?.compatibilityScore || 0);
+  const bTotal = Number(b?.cost || 0) + Number(b?.compatibilityScore || 0);
+  if (aTotal !== bTotal) return aTotal - bTotal;
+  const aPriority = Number(a?.variantPriority || 0);
+  const bPriority = Number(b?.variantPriority || 0);
+  if (aPriority !== bPriority) return aPriority - bPriority;
+  if ((a?.provider || "") !== (b?.provider || "")) return String(a?.provider || "").localeCompare(String(b?.provider || ""));
+  if ((a?.variantId || "") !== (b?.variantId || "")) return String(a?.variantId || "").localeCompare(String(b?.variantId || ""));
+  return String(a?.item || "").localeCompare(String(b?.item || ""));
+}
+
+function stationNeedsItem(station) {
+  const name = normalizeItemName(station);
+  return name === "crafting_table" || name === "furnace";
+}
+
+function stationAvailable(snapshot, station) {
+  const name = normalizeItemName(station);
+  return !!snapshot?.nearbyStations?.[name]?.available;
+}
+
+function planStationDependency(ctx, station, item, depth, stack) {
+  const stationName = normalizeItemName(station);
+  if (!stationName || stationName === "inventory") return { ok: true };
+  if (!stationNeedsItem(stationName)) return { ok: true };
+  if (item === stationName) return { ok: true };
+  if (stationAvailable(ctx.snapshot, stationName)) return { ok: true };
+  ctx.log({
+    type: "progression_gate",
+    goalId: ctx.goalId,
+    item,
+    station: stationName,
+    needStation: stationName
+  });
+  return planItem(ctx, stationName, 1, depth + 1, stack);
 }
 
 function planWithOption(ctx, item, missing, option, depth, stack) {
@@ -201,13 +235,8 @@ function planWithOption(ctx, item, missing, option, depth, stack) {
     }
 
     if (option.station && option.station !== "inventory") {
-      if (option.station === "crafting_table" && item !== "crafting_table") {
-        const nearby = !!ctx.snapshot.nearbyStations?.crafting_table?.available;
-        if (!nearby) {
-          const tablePlanned = planItem(ctx, "crafting_table", 1, depth + 1, stack);
-          if (!tablePlanned.ok) return tablePlanned;
-        }
-      }
+      const stationPlanned = planStationDependency(ctx, option.station, item, depth, stack);
+      if (!stationPlanned.ok) return stationPlanned;
       addStep(ctx, "ensure_station", { station: option.station });
     }
 
@@ -234,6 +263,8 @@ function planWithOption(ctx, item, missing, option, depth, stack) {
       if (!planned.ok) return planned;
     }
 
+    const stationPlanned = planStationDependency(ctx, option.station || "furnace", item, depth, stack);
+    if (!stationPlanned.ok) return stationPlanned;
     addStep(ctx, "ensure_station", { station: option.station || "furnace" });
     addStep(ctx, "smelt_recipe", {
       item,
@@ -252,6 +283,21 @@ function planWithOption(ctx, item, missing, option, depth, stack) {
   }
 
   if (option.provider === "gather_block") {
+    const requiredTool = option.toolRequirement || null;
+    const needTool = minimumToolName(requiredTool);
+    if (needTool && needTool !== item) {
+      ctx.log({
+        type: "progression_gate",
+        goalId: ctx.goalId,
+        item,
+        needTool,
+        toolRequirement: requiredTool
+      });
+      const plannedTool = planItem(ctx, needTool, 1, depth + 1, stack);
+      if (!plannedTool.ok) {
+        return fail("progression_blocked", `need ${needTool} before ${item}`, `craft ${needTool}`);
+      }
+    }
     addStep(ctx, "gather_block", {
       item,
       count: missing,
@@ -339,7 +385,7 @@ function planItem(ctx, itemName, count, depth, stack = []) {
 
   ctx.log({ type: "dependency_expand", item, count: missing, depth });
   let options = getAcquisitionOptions(item, missing, optionCtx);
-  options = options.slice().sort((a, b) => optionSortKey(a).localeCompare(optionSortKey(b)));
+  options = options.slice().sort(optionCompare);
   options = pruneOptions(item, options, ctx);
 
   let bestFailure = null;
@@ -431,7 +477,25 @@ function buildGoalPlan(bot, intent, cfg = {}, snapshot = null, log = () => {}) {
     };
   }
 
-  const recipeDb = buildRecipeDb(bot.version);
+  const coverageMode = String(cfg.craftCoverageMode || "legacy").toLowerCase();
+  if (coverageMode === "overworld_v1" && !isItemSupportedInCoverage(item, cfg)) {
+    return {
+      ok: false,
+      goalId,
+      domain: "craft",
+      code: "unsupported_scope",
+      reason: `target ${item} is out of overworld scope`,
+      nextNeed: "request an overworld-supported craft target"
+    };
+  }
+
+  const recipeDb = buildRecipeDb(bot.version, {
+    craftCoverageMode: cfg.craftCoverageMode || "legacy",
+    craftRecipeManifestVersion: cfg.craftRecipeManifestVersion || "1.21.1-overworld-v1",
+    recipeExecutionScope: cfg.recipeExecutionScope || "craft_smelt_stations",
+    stationExecutionEnabled: cfg.stationExecutionEnabled || cfg.supportedStations,
+    log
+  });
   if (!loggedRecipeDbVersions.has(recipeDb.version)) {
     loggedRecipeDbVersions.add(recipeDb.version);
     log({

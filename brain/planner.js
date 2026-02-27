@@ -10,6 +10,8 @@ const { buildGoalPlan } = require("./dependency_planner");
 const { TaskSupervisor } = require("./task_supervisor");
 const { goals, Movements } = require("mineflayer-pathfinder");
 const { runStepWithCorrection, runGoalWithReplan } = require("./goal_reasoner");
+const { moveNearHuman, applyMovementProfile } = require("./motion_controller");
+const { executeCombatTurn } = require("./combat_controller");
 const {
   isLivingNonPlayerEntity,
   getCanonicalEntityName,
@@ -109,26 +111,8 @@ function nearbyLivingDiagnostics(bot, maxDistance, limit = 10) {
     .map((e) => `${e.name}:${e.type}@${e.dist.toFixed(1)}`);
 }
 
-async function moveNear(bot, pos, radius, timeoutMs, runCtx) {
-  bot.pathfinder.setGoal(new goals.GoalNear(pos.x, pos.y, pos.z, radius));
-  const start = Date.now();
-  let bestDistance = Number.POSITIVE_INFINITY;
-
-  while (Date.now() - start < timeoutMs) {
-    if (shouldCancel(runCtx)) return { status: "cancel" };
-    const dist = bot.entity.position.distanceTo(pos);
-    if (dist < bestDistance) bestDistance = dist;
-    if (dist <= radius) return { status: "success" };
-    const ok = await waitTicksCancelable(bot, 10, runCtx);
-    if (!ok) return { status: "cancel" };
-  }
-
-  return {
-    status: "timeout",
-    code: "path_blocked",
-    reason: bestDistance < Number.POSITIVE_INFINITY ? "path blocked" : "timeout",
-    recoverable: true
-  };
+async function moveNear(bot, pos, radius, timeoutMs, runCtx, cfg = {}, log = () => {}) {
+  return moveNearHuman(bot, pos, radius, timeoutMs, runCtx, cfg, log, "planner_move");
 }
 
 async function executeAttackMob(bot, mobType, cfg, runCtx, log) {
@@ -143,11 +127,13 @@ async function executeAttackMob(bot, mobType, cfg, runCtx, log) {
   movements.allowParkour = false;
   movements.canDig = false;
   bot.pathfinder.setMovements(movements);
+  applyMovementProfile(bot, cfg, log);
 
   let sawAnyTarget = false;
   while (Date.now() < deadline) {
     if (shouldCancel(runCtx)) {
       bot.pathfinder.setGoal(null);
+      try { bot.pvp?.stop?.(); } catch {}
       return { status: "cancel" };
     }
 
@@ -158,6 +144,7 @@ async function executeAttackMob(bot, mobType, cfg, runCtx, log) {
         const nearby = nearbyLivingDiagnostics(bot, maxDistance);
         log({ type: "target_scan", target: mobType, maxDistance, nearby });
         bot.pathfinder.setGoal(null);
+        try { bot.pvp?.stop?.(); } catch {}
         return {
           status: "fail",
           code: "resource_not_loaded",
@@ -169,41 +156,49 @@ async function executeAttackMob(bot, mobType, cfg, runCtx, log) {
       const ok = await waitTicksCancelable(bot, 10, runCtx);
       if (!ok) {
         bot.pathfinder.setGoal(null);
+        try { bot.pvp?.stop?.(); } catch {}
         return { status: "cancel" };
       }
       continue;
     }
 
     sawAnyTarget = true;
-    const dist = bot.entity.position.distanceTo(target.position);
-    if (dist > 3) {
-      bot.pathfinder.setGoal(new goals.GoalFollow(target, 1), true);
-      const ok = await waitTicksCancelable(bot, 10, runCtx);
+    const turn = await executeCombatTurn(bot, target, cfg, runCtx, log);
+    if (turn?.status === "cancel") {
+      bot.pathfinder.setGoal(null);
+      try { bot.pvp?.stop?.(); } catch {}
+      return { status: "cancel" };
+    }
+    if (!turn?.ok) {
+      if (turn.code === "combat_retreat") {
+        bot.pathfinder.setGoal(null);
+        try { bot.pvp?.stop?.(); } catch {}
+        return {
+          status: "fail",
+          code: turn.code,
+          reason: turn.reason || "retreat required",
+          nextNeed: turn.nextNeed || "heal and eat",
+          recoverable: false
+        };
+      }
+      const ok = await waitTicksCancelable(bot, 8, runCtx);
       if (!ok) {
         bot.pathfinder.setGoal(null);
+        try { bot.pvp?.stop?.(); } catch {}
         return { status: "cancel" };
       }
       continue;
     }
-
-    try {
-      bot.attack(target);
-      log({ type: "attack_hit", mobType, target: getCanonicalEntityName(target) || target.displayName || target.name });
-    } catch (e) {
-      log({ type: "attack_error", mobType, error: String(e) });
-    }
-    const ok = await waitTicksCancelable(bot, 8, runCtx);
-    if (!ok) {
-      bot.pathfinder.setGoal(null);
-      return { status: "cancel" };
-    }
+    log({ type: "attack_hit", mobType, target: getCanonicalEntityName(target) || target.displayName || target.name });
     if (!target.isValid) {
       bot.pathfinder.setGoal(null);
+      try { bot.pvp?.stop?.(); } catch {}
       return { status: "success" };
     }
   }
 
   bot.pathfinder.setGoal(null);
+  try { bot.pvp?.stop?.(); } catch {}
   if (!sawAnyTarget) {
     const nearby = nearbyLivingDiagnostics(bot, maxDistance);
     log({ type: "target_scan", target: mobType, maxDistance, nearby });
@@ -239,6 +234,7 @@ async function executeIntent(bot, intent, getState, setState, log, cfg, runCtx, 
 
   if (intent.type === "follow") {
     if (typeof progress === "function") progress("following owner", { stepAction: "follow" });
+    applyMovementProfile(bot, cfg, log);
     await follow(bot, intent.target || cfg.owner, log);
     return { status: "success" };
   }
@@ -253,10 +249,11 @@ async function executeIntent(bot, intent, getState, setState, log, cfg, runCtx, 
     movements.allowParkour = false;
     movements.canDig = false;
     bot.pathfinder.setMovements(movements);
+    applyMovementProfile(bot, cfg, log);
     const timeoutMs = (cfg.taskTimeoutSec || 60) * 1000;
     const reasoned = await runStepWithCorrection(
       "come",
-      async () => toReasonerResult(await moveNear(bot, owner.position.floored(), 1, timeoutMs, runCtx), "path_blocked"),
+      async () => toReasonerResult(await moveNear(bot, owner.position.floored(), 1, timeoutMs, runCtx, cfg, log), "path_blocked"),
       { bot, cfg, runCtx, log }
     );
     if (reasoned.ok) {
@@ -270,6 +267,11 @@ async function executeIntent(bot, intent, getState, setState, log, cfg, runCtx, 
 
   if (intent.type === "stop" || intent.type === "stopall") {
     if (typeof progress === "function") progress("stopping tasks", { stepAction: intent.type });
+    if (intent.type === "stopall") {
+      const state = getState();
+      state.stopped = true;
+      setState(state);
+    }
     await stopall(bot, log);
     return { status: "success" };
   }
@@ -462,10 +464,11 @@ async function executeIntent(bot, intent, getState, setState, log, cfg, runCtx, 
     movements.allowParkour = false;
     movements.canDig = false;
     bot.pathfinder.setMovements(movements);
+    applyMovementProfile(bot, cfg, log);
 
     const reasoned = await runStepWithCorrection(
       "explore",
-      async () => toReasonerResult(await moveNear(bot, target, 2, seconds * 1000, runCtx), "path_blocked"),
+      async () => toReasonerResult(await moveNear(bot, target, 2, seconds * 1000, runCtx, cfg, log), "path_blocked"),
       { bot, cfg, runCtx, log }
     );
     if (reasoned.ok) return { status: "success" };
@@ -627,6 +630,15 @@ async function planAndRun(bot, intent, getState, setState, log, cfg, runCtx = nu
         code: stalled.code || "task_stalled",
         nextNeed: stalled.nextNeed || null
       });
+      log({
+        type: "task_fail_detail",
+        taskId: runCtx?.id || null,
+        intent: intent.type,
+        status: "fail",
+        reason,
+        code: stalled.code || "task_stalled",
+        nextNeed: stalled.nextNeed || null
+      });
       bot.chat(`can't: ${reason}${stalled.nextNeed ? ` (next: ${stalled.nextNeed})` : ""}`);
       supervisor.finish("fail", {
         code: stalled.code || "task_stalled",
@@ -665,6 +677,15 @@ async function planAndRun(bot, intent, getState, setState, log, cfg, runCtx = nu
         code: result.code || "timeout",
         nextNeed: result.nextNeed || null
       });
+      log({
+        type: "task_fail_detail",
+        taskId: runCtx?.id || null,
+        intent: intent.type,
+        status: "timeout",
+        reason: result.reason || "timeout",
+        code: result.code || "timeout",
+        nextNeed: result.nextNeed || null
+      });
       bot.chat(`can't: ${result.reason || "timeout"}`);
       supervisor.finish("timeout", {
         code: result.code || "timeout",
@@ -688,6 +709,15 @@ async function planAndRun(bot, intent, getState, setState, log, cfg, runCtx = nu
       code: result.code || "task_fail",
       nextNeed: result.nextNeed || null
     });
+    log({
+      type: "task_fail_detail",
+      taskId: runCtx?.id || null,
+      intent: intent.type,
+      status: "fail",
+      reason: result.reason || "failed",
+      code: result.code || "task_fail",
+      nextNeed: result.nextNeed || null
+    });
     if (result.code !== "confirm_expand_search") {
       bot.chat(`can't: ${result.reason || "unsupported request"}`);
     }
@@ -707,6 +737,15 @@ async function planAndRun(bot, intent, getState, setState, log, cfg, runCtx = nu
   } catch (e) {
     const reason = String(e);
     log({ type: "task_fail", taskId: runCtx?.id || null, intent: intent.type, reason, code: "exception" });
+    log({
+      type: "task_fail_detail",
+      taskId: runCtx?.id || null,
+      intent: intent.type,
+      status: "fail",
+      reason,
+      code: "exception",
+      nextNeed: null
+    });
     bot.chat("can't: unsupported request");
     supervisor.finish("fail", { code: "exception", reason, nextNeed: null });
     if (runCtx) runCtx.status = "fail";

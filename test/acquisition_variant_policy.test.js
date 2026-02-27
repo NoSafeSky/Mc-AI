@@ -75,3 +75,45 @@ test("wood recipes prefer inventory species first then normalize to planks famil
   assert.ok(selected);
   assert.equal(selected.ingredients.some((i) => i.name === "planks"), true);
 });
+
+test("furnace from empty inventory prefers cobblestone path in overworld mode", () => {
+  const options = getAcquisitionOptions(
+    "furnace",
+    1,
+    baseCtx(
+      {
+        nearbyResources: {
+          cobblestone: { available: true },
+          cobbled_deepslate: { available: false },
+          blackstone: { available: true }
+        }
+      },
+      {
+        craftCoverageMode: "overworld_v1",
+        craftRecipeManifestVersion: "1.21.1-overworld-v1"
+      }
+    )
+  );
+  const selected = firstCraftVariant(options);
+  assert.ok(selected);
+  assert.equal(selected.ingredients.some((i) => i.name === "cobblestone"), true);
+});
+
+test("inventory-ready blackstone furnace variant can win in overworld mode", () => {
+  const options = getAcquisitionOptions(
+    "furnace",
+    1,
+    baseCtx(
+      {
+        inventory: { blackstone: 8 }
+      },
+      {
+        craftCoverageMode: "overworld_v1",
+        craftRecipeManifestVersion: "1.21.1-overworld-v1"
+      }
+    )
+  );
+  const selected = firstCraftVariant(options);
+  assert.ok(selected);
+  assert.equal(selected.ingredients.some((i) => i.name === "blackstone"), true);
+});

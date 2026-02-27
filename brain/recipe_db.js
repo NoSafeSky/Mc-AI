@@ -1,6 +1,48 @@
+const fs = require("fs");
+const path = require("path");
 const { normalizeItemName } = require("./knowledge");
 
 const DB_CACHE = new Map();
+const MANIFEST_LOAD_LOGGED = new Set();
+
+const ALLOWED_STATIONS = new Set([
+  "inventory",
+  "crafting_table",
+  "furnace",
+  "smoker",
+  "blast_furnace",
+  "stonecutter",
+  "smithing_table"
+]);
+
+const OVERWORLD_OUT_OF_SCOPE_PATTERNS = [
+  /^netherite_/,
+  /^elytra$/,
+  /^end_crystal$/,
+  /^ender_eye$/,
+  /^ender_chest$/,
+  /^beacon$/,
+  /^respawn_anchor$/,
+  /^lodestone$/,
+  /^dragon_(egg|head|breath)$/,
+  /^totem_of_undying$/,
+  /^trident$/,
+  /^nautilus_shell$/,
+  /^heart_of_the_sea$/,
+  /^conduit$/,
+  /^phantom_membrane$/,
+  /^ghast_tear$/,
+  /^blaze_(rod|powder)$/,
+  /^purpur_/,
+  /^chorus_/,
+  /^shulker_box$/,
+  /_smithing_template$/,
+  /^spawn_egg$/,
+  /^echo_shard$/,
+  /^disc_fragment_/,
+  /^ancient_debris$/,
+  /^nether_star$/
+];
 
 function parseRecipeIngredients(recipe, mcData) {
   const counts = new Map();
@@ -138,6 +180,27 @@ function processInScope(processType, opts = {}) {
   return true;
 }
 
+function coverageMode(opts = {}) {
+  return String(opts.craftCoverageMode || opts.coverageMode || "legacy").toLowerCase();
+}
+
+function coverageManifestVersion(opts = {}) {
+  return String(opts.craftRecipeManifestVersion || opts.manifestVersion || "1.21.1-overworld-v1");
+}
+
+function isItemSupportedInCoverage(itemName, opts = {}) {
+  const mode = coverageMode(opts);
+  if (mode !== "overworld_v1") return true;
+  const name = normalizeItemName(itemName);
+  if (!name) return false;
+  return !OVERWORLD_OUT_OF_SCOPE_PATTERNS.some((re) => re.test(name));
+}
+
+function defaultManifestPath(opts = {}) {
+  if (opts.manifestPath) return path.resolve(opts.manifestPath);
+  return path.join(__dirname, "data", "recipes", "overworld_1_21_1.json");
+}
+
 function addEntry(state, entry) {
   if (!entry?.outputItem || !Array.isArray(entry.ingredients) || !entry.ingredients.length) return;
   const outputItem = normalizeItemName(entry.outputItem);
@@ -155,6 +218,7 @@ function addEntry(state, entry) {
   const station = normalizeItemName(entry.station || "inventory");
   const processType = normalizeItemName(entry.processType || "craft");
   const variantId = entry.variantId || `${processType}:${outputItem}:${ingredientSignature(normalizedIngredients)}`;
+  const scope = normalizeItemName(entry.scope || "all");
 
   const record = {
     outputItem,
@@ -162,7 +226,8 @@ function addEntry(state, entry) {
     station,
     processType,
     ingredients: normalizedIngredients,
-    variantId
+    variantId,
+    scope
   };
 
   if (!state.entriesByOutput.has(outputItem)) {
@@ -178,12 +243,111 @@ function addEntry(state, entry) {
   state.variantsById.set(variantId, record);
 }
 
-function buildRecipeDb(version = "1.21.1") {
+function rejectManifest(log, detail) {
+  if (typeof log === "function") {
+    log({
+      type: "recipe_manifest_reject",
+      ...detail
+    });
+  }
+}
+
+function loadManifestEntries(version, mcData, opts = {}) {
+  const manifestPath = defaultManifestPath(opts);
+  let parsed = null;
+  try {
+    parsed = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  } catch (e) {
+    rejectManifest(opts.log, {
+      manifestPath,
+      reason: `manifest_read_error:${String(e?.message || e)}`
+    });
+    throw new Error(`recipe manifest read failed: ${manifestPath}`);
+  }
+
+  if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.entries)) {
+    rejectManifest(opts.log, {
+      manifestPath,
+      reason: "manifest_invalid_shape"
+    });
+    throw new Error(`recipe manifest invalid shape: ${manifestPath}`);
+  }
+
+  const entries = [];
+  for (let i = 0; i < parsed.entries.length; i += 1) {
+    const row = parsed.entries[i];
+    const station = normalizeItemName(row?.station);
+    const processType = normalizeItemName(row?.processType);
+    const outputItem = normalizeItemName(row?.outputItem);
+    const scope = normalizeItemName(row?.scope || "overworld");
+    const ingredients = Array.isArray(row?.ingredients)
+      ? row.ingredients.map((ing) => ({
+        name: normalizeItemName(ing?.name),
+        count: Math.max(1, Number(ing?.count || 1))
+      }))
+      : [];
+
+    const fail = (reason) => {
+      rejectManifest(opts.log, {
+        manifestPath,
+        index: i,
+        reason,
+        entry: row || null
+      });
+      throw new Error(`recipe manifest invalid entry at index ${i}: ${reason}`);
+    };
+
+    if (!outputItem) fail("missing_output_item");
+    if (!mcData.itemsByName?.[outputItem]) fail(`unknown_output_item:${outputItem}`);
+    if (!ALLOWED_STATIONS.has(station)) fail(`invalid_station:${station}`);
+    if (!["smelt", "stonecut", "smithing", "craft"].includes(processType)) fail(`invalid_process_type:${processType}`);
+    if (!Array.isArray(ingredients) || !ingredients.length) fail("missing_ingredients");
+    for (const ing of ingredients) {
+      if (!ing.name) fail("missing_ingredient_name");
+      if (!mcData.itemsByName?.[ing.name]) fail(`unknown_ingredient:${ing.name}`);
+      if (!Number.isFinite(ing.count) || ing.count <= 0) fail(`invalid_ingredient_count:${ing.name}`);
+    }
+    if (scope !== "overworld" && scope !== "all") fail(`invalid_scope:${scope}`);
+
+    entries.push({
+      outputItem,
+      outputCount: Math.max(1, Number(row?.outputCount || 1)),
+      processType,
+      station,
+      ingredients,
+      variantId: String(row?.variantId || `${processType}:${outputItem}:${ingredientSignature(ingredients)}`),
+      scope
+    });
+  }
+
+  const key = `${version}|${coverageMode(opts)}|${coverageManifestVersion(opts)}|${manifestPath}`;
+  if (typeof opts.log === "function" && !MANIFEST_LOAD_LOGGED.has(key)) {
+    MANIFEST_LOAD_LOGGED.add(key);
+    opts.log({
+      type: "recipe_manifest_loaded",
+      version,
+      coverageMode: coverageMode(opts),
+      manifestVersion: coverageManifestVersion(opts),
+      manifestPath,
+      entryCount: entries.length
+    });
+  }
+  return entries;
+}
+
+function buildRecipeDb(version = "1.21.1", opts = {}) {
   const key = String(version || "1.21.1");
-  if (DB_CACHE.has(key)) return DB_CACHE.get(key);
+  const mode = coverageMode(opts);
+  const manifestVersion = coverageManifestVersion(opts);
+  const manifestPath = mode === "overworld_v1" ? defaultManifestPath(opts) : "";
+  const cacheKey = `${key}|${mode}|${manifestVersion}|${manifestPath}`;
+  if (DB_CACHE.has(cacheKey)) return DB_CACHE.get(cacheKey);
+
   const mcData = require("minecraft-data")(key);
   const state = {
     version: key,
+    coverageMode: mode,
+    manifestVersion,
     mcData,
     entriesByOutput: new Map(),
     variantsById: new Map()
@@ -191,6 +355,7 @@ function buildRecipeDb(version = "1.21.1") {
 
   for (const [itemName, itemInfo] of Object.entries(mcData.itemsByName || {})) {
     const outputItem = normalizeItemName(itemName);
+    if (mode === "overworld_v1" && !isItemSupportedInCoverage(outputItem, opts)) continue;
     const recipes = mcData.recipes?.[itemInfo.id] || [];
     for (const recipe of recipes) {
       const ingredients = parseRecipeIngredients(recipe, mcData);
@@ -204,45 +369,57 @@ function buildRecipeDb(version = "1.21.1") {
         station,
         processType: "craft",
         ingredients,
-        variantId
+        variantId,
+        scope: mode === "overworld_v1" ? "overworld" : "all"
       });
     }
   }
 
-  for (const src of buildStaticSmeltEntries()) {
-    addEntry(state, {
-      outputItem: src.outputItem,
-      outputCount: src.outputCount || 1,
-      station: src.station || "furnace",
-      processType: "smelt",
-      ingredients: [{ name: src.input, count: src.inputCount || 1 }],
-      variantId: `smelt:${normalizeItemName(src.outputItem)}:${normalizeItemName(src.input)}`
-    });
+  if (mode === "overworld_v1") {
+    const manifestEntries = loadManifestEntries(key, mcData, opts);
+    for (const entry of manifestEntries) {
+      if (!isItemSupportedInCoverage(entry.outputItem, opts)) continue;
+      addEntry(state, entry);
+    }
+  } else {
+    for (const src of buildStaticSmeltEntries()) {
+      addEntry(state, {
+        outputItem: src.outputItem,
+        outputCount: src.outputCount || 1,
+        station: src.station || "furnace",
+        processType: "smelt",
+        ingredients: [{ name: src.input, count: src.inputCount || 1 }],
+        variantId: `smelt:${normalizeItemName(src.outputItem)}:${normalizeItemName(src.input)}`,
+        scope: "all"
+      });
+    }
+
+    for (const src of buildStaticStonecutterEntries()) {
+      addEntry(state, {
+        outputItem: src.outputItem,
+        outputCount: src.outputCount || 1,
+        station: src.station || "stonecutter",
+        processType: "stonecut",
+        ingredients: [{ name: src.input, count: 1 }],
+        variantId: `stonecut:${normalizeItemName(src.outputItem)}:${normalizeItemName(src.input)}`,
+        scope: "all"
+      });
+    }
+
+    for (const src of buildStaticSmithingEntries()) {
+      addEntry(state, {
+        outputItem: src.outputItem,
+        outputCount: 1,
+        station: "smithing_table",
+        processType: "smithing",
+        ingredients: src.ingredients,
+        variantId: `smithing:${normalizeItemName(src.outputItem)}:${ingredientSignature(src.ingredients)}`,
+        scope: "all"
+      });
+    }
   }
 
-  for (const src of buildStaticStonecutterEntries()) {
-    addEntry(state, {
-      outputItem: src.outputItem,
-      outputCount: src.outputCount || 1,
-      station: src.station || "stonecutter",
-      processType: "stonecut",
-      ingredients: [{ name: src.input, count: 1 }],
-      variantId: `stonecut:${normalizeItemName(src.outputItem)}:${normalizeItemName(src.input)}`
-    });
-  }
-
-  for (const src of buildStaticSmithingEntries()) {
-    addEntry(state, {
-      outputItem: src.outputItem,
-      outputCount: 1,
-      station: "smithing_table",
-      processType: "smithing",
-      ingredients: src.ingredients,
-      variantId: `smithing:${normalizeItemName(src.outputItem)}:${ingredientSignature(src.ingredients)}`
-    });
-  }
-
-  for (const [output, entries] of state.entriesByOutput.entries()) {
+  for (const [, entries] of state.entriesByOutput.entries()) {
     entries.sort((a, b) => {
       if (a.processType !== b.processType) return a.processType.localeCompare(b.processType);
       if (a.station !== b.station) return a.station.localeCompare(b.station);
@@ -253,22 +430,27 @@ function buildRecipeDb(version = "1.21.1") {
 
   const db = {
     version: key,
+    coverageMode: mode,
+    manifestVersion,
     mcData,
     entriesByOutput: state.entriesByOutput,
     variantsById: state.variantsById
   };
-  DB_CACHE.set(key, db);
+  DB_CACHE.set(cacheKey, db);
   return db;
 }
 
 function getRecipeVariants(outputItem, opts = {}) {
   const item = normalizeItemName(outputItem);
   if (!item) return [];
-  const db = buildRecipeDb(opts.version || "1.21.1");
+  if (!isItemSupportedInCoverage(item, opts)) return [];
+  const db = buildRecipeDb(opts.version || "1.21.1", opts);
+  const mode = coverageMode(opts);
   const all = db.entriesByOutput.get(item) || [];
   return all
     .filter((entry) => processInScope(entry.processType, opts))
     .filter((entry) => stationEnabled(entry.station, opts))
+    .filter((entry) => mode !== "overworld_v1" || entry.scope === "overworld" || entry.scope === "all")
     .map((entry) => ({
       ...entry,
       ingredients: entry.ingredients.map((ing) => ({ ...ing }))
@@ -278,7 +460,7 @@ function getRecipeVariants(outputItem, opts = {}) {
 function getStationForVariant(variantId, opts = {}) {
   const id = String(variantId || "").trim();
   if (!id) return null;
-  const db = buildRecipeDb(opts.version || "1.21.1");
+  const db = buildRecipeDb(opts.version || "1.21.1", opts);
   return db.variantsById.get(id)?.station || null;
 }
 
@@ -348,5 +530,6 @@ module.exports = {
   buildRecipeDb,
   getRecipeVariants,
   getStationForVariant,
-  getIngredientGraph
+  getIngredientGraph,
+  isItemSupportedInCoverage
 };

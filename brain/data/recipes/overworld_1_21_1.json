@@ -1,0 +1,383 @@
+{
+  "version": "1.21.1-overworld-v1",
+  "entries": [
+    {
+      "outputItem": "charcoal",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "oak_log", "count": 1 }],
+      "variantId": "smelt:charcoal:oak_log",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "charcoal",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "spruce_log", "count": 1 }],
+      "variantId": "smelt:charcoal:spruce_log",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "charcoal",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "birch_log", "count": 1 }],
+      "variantId": "smelt:charcoal:birch_log",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "charcoal",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "jungle_log", "count": 1 }],
+      "variantId": "smelt:charcoal:jungle_log",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "charcoal",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "acacia_log", "count": 1 }],
+      "variantId": "smelt:charcoal:acacia_log",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "charcoal",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "dark_oak_log", "count": 1 }],
+      "variantId": "smelt:charcoal:dark_oak_log",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "charcoal",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "mangrove_log", "count": 1 }],
+      "variantId": "smelt:charcoal:mangrove_log",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "charcoal",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "cherry_log", "count": 1 }],
+      "variantId": "smelt:charcoal:cherry_log",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "glass",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "sand", "count": 1 }],
+      "variantId": "smelt:glass:sand",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "smooth_stone",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "stone", "count": 1 }],
+      "variantId": "smelt:smooth_stone:stone",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "stone",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "cobblestone", "count": 1 }],
+      "variantId": "smelt:stone:cobblestone",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "cracked_stone_bricks",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "stone_bricks", "count": 1 }],
+      "variantId": "smelt:cracked_stone_bricks:stone_bricks",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "cracked_deepslate_bricks",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "deepslate_bricks", "count": 1 }],
+      "variantId": "smelt:cracked_deepslate_bricks:deepslate_bricks",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "cracked_deepslate_tiles",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "deepslate_tiles", "count": 1 }],
+      "variantId": "smelt:cracked_deepslate_tiles:deepslate_tiles",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "baked_potato",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "potato", "count": 1 }],
+      "variantId": "smelt:baked_potato:potato",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "cooked_beef",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "beef", "count": 1 }],
+      "variantId": "smelt:cooked_beef:beef",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "cooked_chicken",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "chicken", "count": 1 }],
+      "variantId": "smelt:cooked_chicken:chicken",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "cooked_cod",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "cod", "count": 1 }],
+      "variantId": "smelt:cooked_cod:cod",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "cooked_mutton",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "mutton", "count": 1 }],
+      "variantId": "smelt:cooked_mutton:mutton",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "cooked_porkchop",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "porkchop", "count": 1 }],
+      "variantId": "smelt:cooked_porkchop:porkchop",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "cooked_rabbit",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "rabbit", "count": 1 }],
+      "variantId": "smelt:cooked_rabbit:rabbit",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "cooked_salmon",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "salmon", "count": 1 }],
+      "variantId": "smelt:cooked_salmon:salmon",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "dried_kelp",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "kelp", "count": 1 }],
+      "variantId": "smelt:dried_kelp:kelp",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "brick",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "clay_ball", "count": 1 }],
+      "variantId": "smelt:brick:clay_ball",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "lime_dye",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "sea_pickle", "count": 1 }],
+      "variantId": "smelt:lime_dye:sea_pickle",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "green_dye",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "cactus", "count": 1 }],
+      "variantId": "smelt:green_dye:cactus",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "terracotta",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "clay", "count": 1 }],
+      "variantId": "smelt:terracotta:clay",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "copper_ingot",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "raw_copper", "count": 1 }],
+      "variantId": "smelt:copper_ingot:raw_copper",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "iron_ingot",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "raw_iron", "count": 1 }],
+      "variantId": "smelt:iron_ingot:raw_iron",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "gold_ingot",
+      "outputCount": 1,
+      "processType": "smelt",
+      "station": "furnace",
+      "ingredients": [{ "name": "raw_gold", "count": 1 }],
+      "variantId": "smelt:gold_ingot:raw_gold",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "stone_brick_slab",
+      "outputCount": 2,
+      "processType": "stonecut",
+      "station": "stonecutter",
+      "ingredients": [{ "name": "stone_bricks", "count": 1 }],
+      "variantId": "stonecut:stone_brick_slab:stone_bricks",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "stone_brick_stairs",
+      "outputCount": 1,
+      "processType": "stonecut",
+      "station": "stonecutter",
+      "ingredients": [{ "name": "stone_bricks", "count": 1 }],
+      "variantId": "stonecut:stone_brick_stairs:stone_bricks",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "stone_brick_wall",
+      "outputCount": 1,
+      "processType": "stonecut",
+      "station": "stonecutter",
+      "ingredients": [{ "name": "stone_bricks", "count": 1 }],
+      "variantId": "stonecut:stone_brick_wall:stone_bricks",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "cobblestone_slab",
+      "outputCount": 2,
+      "processType": "stonecut",
+      "station": "stonecutter",
+      "ingredients": [{ "name": "cobblestone", "count": 1 }],
+      "variantId": "stonecut:cobblestone_slab:cobblestone",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "cobblestone_stairs",
+      "outputCount": 1,
+      "processType": "stonecut",
+      "station": "stonecutter",
+      "ingredients": [{ "name": "cobblestone", "count": 1 }],
+      "variantId": "stonecut:cobblestone_stairs:cobblestone",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "cobblestone_wall",
+      "outputCount": 1,
+      "processType": "stonecut",
+      "station": "stonecutter",
+      "ingredients": [{ "name": "cobblestone", "count": 1 }],
+      "variantId": "stonecut:cobblestone_wall:cobblestone",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "deepslate_tile_slab",
+      "outputCount": 2,
+      "processType": "stonecut",
+      "station": "stonecutter",
+      "ingredients": [{ "name": "deepslate_tiles", "count": 1 }],
+      "variantId": "stonecut:deepslate_tile_slab:deepslate_tiles",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "deepslate_tile_stairs",
+      "outputCount": 1,
+      "processType": "stonecut",
+      "station": "stonecutter",
+      "ingredients": [{ "name": "deepslate_tiles", "count": 1 }],
+      "variantId": "stonecut:deepslate_tile_stairs:deepslate_tiles",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "deepslate_tile_wall",
+      "outputCount": 1,
+      "processType": "stonecut",
+      "station": "stonecutter",
+      "ingredients": [{ "name": "deepslate_tiles", "count": 1 }],
+      "variantId": "stonecut:deepslate_tile_wall:deepslate_tiles",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "polished_deepslate_slab",
+      "outputCount": 2,
+      "processType": "stonecut",
+      "station": "stonecutter",
+      "ingredients": [{ "name": "polished_deepslate", "count": 1 }],
+      "variantId": "stonecut:polished_deepslate_slab:polished_deepslate",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "polished_deepslate_stairs",
+      "outputCount": 1,
+      "processType": "stonecut",
+      "station": "stonecutter",
+      "ingredients": [{ "name": "polished_deepslate", "count": 1 }],
+      "variantId": "stonecut:polished_deepslate_stairs:polished_deepslate",
+      "scope": "overworld"
+    },
+    {
+      "outputItem": "polished_deepslate_wall",
+      "outputCount": 1,
+      "processType": "stonecut",
+      "station": "stonecutter",
+      "ingredients": [{ "name": "polished_deepslate", "count": 1 }],
+      "variantId": "stonecut:polished_deepslate_wall:polished_deepslate",
+      "scope": "overworld"
+    }
+  ]
+}

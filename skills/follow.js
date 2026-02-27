@@ -1,4 +1,5 @@
 const { Movements, goals } = require("mineflayer-pathfinder");
+const { applyMovementProfile } = require("../brain/motion_controller");
 
 async function follow(bot, playerName, log) {
   const p = bot.players[playerName]?.entity;
@@ -10,6 +11,7 @@ async function follow(bot, playerName, log) {
   movements.allowParkour = false;
   movements.canDig = false;
   bot.pathfinder.setMovements(movements);
+  applyMovementProfile(bot, bot.__runtimeCfg || {}, log);
   bot.pathfinder.setGoal(new goals.GoalFollow(p, 2), true);
 
   bot.chat("ok.");

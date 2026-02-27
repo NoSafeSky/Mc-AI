@@ -100,6 +100,49 @@ test("wooden_sword with birch_log plans via log -> planks family", () => {
   assert.equal(plan.steps.some((s) => s.action === "gather_block" && s.args?.item === "acacia_log"), false);
 });
 
+test("iron_pickaxe plan includes stone gate, raw iron gather, smelt, and final craft", () => {
+  const bot = makeBot([]);
+  const events = [];
+  const plan = buildGoalPlan(
+    bot,
+    { type: "craftItem", item: "iron_pickaxe", count: 1 },
+    {
+      dependencyMaxDepth: 12,
+      dependencyMaxNodes: 2000,
+      dependencyPlanTimeoutMs: 8000,
+      craftCoverageMode: "overworld_v1",
+      craftRecipeManifestVersion: "1.21.1-overworld-v1",
+      preferBambooForSticks: false
+    },
+    null,
+    (evt) => events.push(evt)
+  );
+
+  assert.equal(plan.ok, true);
+  assert.equal(plan.steps.some((s) => s.action === "craft_recipe" && s.args?.item === "wooden_pickaxe"), true);
+  assert.equal(plan.steps.some((s) => s.action === "craft_recipe" && s.args?.item === "stone_pickaxe"), true);
+  assert.equal(plan.steps.some((s) => s.action === "craft_recipe" && s.args?.item === "furnace"), true);
+  assert.equal(plan.steps.some((s) => s.action === "ensure_station" && s.args?.station === "furnace"), true);
+  assert.equal(plan.steps.some((s) => s.action === "gather_block" && s.args?.item === "raw_iron"), true);
+  assert.equal(plan.steps.some((s) => s.action === "smelt_recipe" && s.args?.item === "iron_ingot"), true);
+  assert.equal(plan.steps.some((s) => s.action === "craft_recipe" && s.args?.item === "iron_pickaxe"), true);
+  assert.equal(events.some((e) => e.type === "progression_gate"), true);
+});
+
+test("overworld mode rejects out-of-scope target with unsupported_scope", () => {
+  const bot = makeBot([]);
+  const plan = buildGoalPlan(bot, { type: "craftItem", item: "netherite_sword", count: 1 }, {
+    dependencyMaxDepth: 10,
+    dependencyMaxNodes: 400,
+    dependencyPlanTimeoutMs: 3000,
+    craftCoverageMode: "overworld_v1",
+    craftRecipeManifestVersion: "1.21.1-overworld-v1"
+  });
+
+  assert.equal(plan.ok, false);
+  assert.equal(plan.code, "unsupported_scope");
+});
+
 test("depth and node limits fail safely", () => {
   const bot = makeBot([]);
   const depthFail = buildGoalPlan(bot, { type: "craftItem", item: "stone_sword", count: 1 }, {

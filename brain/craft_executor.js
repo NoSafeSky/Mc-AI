@@ -21,6 +21,7 @@ const {
 } = require("./item_equivalence");
 const { fuelPlan, findFuelInventoryItem } = require("./fuel_planner");
 const { autoRelocateForResource } = require("./resource_navigator");
+const { moveNearHuman, applyMovementProfile } = require("./motion_controller");
 
 function normalizeItemName(name) {
   return String(name || "")
@@ -54,11 +55,15 @@ function isEmptyBlock(block) {
 
 function listInventoryItems(bot) {
   if (!bot?.inventory) return [];
+  if (typeof bot.inventory.items === "function") {
+    const listed = bot.inventory.items();
+    if (Array.isArray(listed)) return listed;
+  }
   const fromSlots = Array.isArray(bot.inventory.slots)
     ? bot.inventory.slots.filter(Boolean)
     : [];
   if (fromSlots.length > 0) return fromSlots;
-  return typeof bot.inventory.items === "function" ? bot.inventory.items() : [];
+  return [];
 }
 
 function inventoryMatchesKey(itemName, key) {
@@ -101,6 +106,11 @@ function reportProgress(runCtx, message, extra = {}) {
   } catch {}
 }
 
+function stepTargetInventoryCount(bot, item, count) {
+  const needed = Math.max(1, Number(count || 1));
+  return inventoryCount(bot, item) + needed;
+}
+
 async function waitTicks(bot, ticks, runCtx) {
   let left = ticks;
   while (left > 0) {
@@ -124,24 +134,17 @@ function findNearbyCraftingTable(bot, radius = 6) {
 }
 
 async function moveNear(bot, position, radius, timeoutMs, runCtx) {
-  bot.pathfinder.setGoal(new goals.GoalNear(position.x, position.y, position.z, radius));
-  const start = Date.now();
-  let lastProgressBeat = 0;
-  while (Date.now() - start < timeoutMs) {
-    if (isCancelled(runCtx)) return false;
-    const dist = bot.entity.position.distanceTo(position);
-    const now = Date.now();
-    if (now - lastProgressBeat >= 2000) {
-      reportProgress(runCtx, `moving to target (${dist.toFixed(1)}m)`, {
-        stepAction: runCtx?.currentStepAction || "move",
-        distance: Number(dist.toFixed(2))
-      });
-      lastProgressBeat = now;
-    }
-    if (dist <= radius) return true;
-    const ok = await waitTicks(bot, 10, runCtx);
-    if (!ok) return false;
-  }
+  const result = await moveNearHuman(
+    bot,
+    position,
+    radius,
+    timeoutMs,
+    runCtx,
+    bot.__runtimeCfg || {},
+    () => {},
+    "craft_move"
+  );
+  if (result.status === "success") return true;
   return false;
 }
 
@@ -194,6 +197,7 @@ function normalizeStepResult(result, fallbackCode) {
 }
 
 async function moveNearWithReasoning(bot, position, radius, timeoutMs, runCtx, cfg, log, stepName) {
+  applyMovementProfile(bot, cfg, log);
   const reached = await moveNear(bot, position, radius, timeoutMs, runCtx);
   if (reached || !reasoningEnabled(cfg)) return reached;
   if (isCancelled(runCtx)) return false;
@@ -794,7 +798,27 @@ async function ensureStation(bot, station, cfg, runCtx, log, ctx) {
   }
 
   if (stationName === "crafting_table") {
-    const tableRes = await ensureTablePlaced(bot, cfg, runCtx, log);
+    let tableRes = await ensureTablePlaced(bot, cfg, runCtx, log);
+    if (!tableRes.ok && tableRes.code === "missing_table_item") {
+      log({
+        type: "station_auto_acquire",
+        station: "crafting_table",
+        reason: tableRes.reason || "missing station item"
+      });
+      const ensuredTableItem = await ensureItem(
+        bot,
+        "crafting_table",
+        inventoryCount(bot, "crafting_table") + 1,
+        cfg,
+        runCtx,
+        log,
+        ctx
+      );
+      const normalized = normalizeStepResult(ensuredTableItem, "station_item_auto_acquire_failed");
+      if (normalized.status === "cancel") return normalized;
+      if (!normalized.ok) return normalized;
+      tableRes = await ensureTablePlaced(bot, cfg, runCtx, log);
+    }
     if (!tableRes.ok) return normalizeStepResult(tableRes, "station_unavailable");
     ctx.stations.crafting_table = tableRes.table;
     return { ok: true, data: tableRes.table };
@@ -806,7 +830,27 @@ async function ensureStation(bot, station, cfg, runCtx, log, ctx) {
     return { ok: true, data: existing };
   }
 
-  const placed = await placeStationFromInventory(bot, stationName, cfg, runCtx, log);
+  let placed = await placeStationFromInventory(bot, stationName, cfg, runCtx, log);
+  if (!placed?.ok && placed?.code === "missing_station_item") {
+    log({
+      type: "station_auto_acquire",
+      station: stationName,
+      reason: placed.reason || "missing station item"
+    });
+    const ensuredStationItem = await ensureItem(
+      bot,
+      stationName,
+      inventoryCount(bot, stationName) + 1,
+      cfg,
+      runCtx,
+      log,
+      ctx
+    );
+    const normalized = normalizeStepResult(ensuredStationItem, "station_item_auto_acquire_failed");
+    if (normalized.status === "cancel") return normalized;
+    if (!normalized.ok) return normalized;
+    placed = await placeStationFromInventory(bot, stationName, cfg, runCtx, log);
+  }
   if (placed?.status === "cancel") return { ok: false, status: "cancel" };
   if (!placed?.ok) {
     return {
@@ -975,6 +1019,37 @@ function localBlockSummary(bot, radius = 4, maxNames = 8) {
     .map(([name, count]) => `${name}:${count}`);
 }
 
+function isItemDropEntity(entity) {
+  if (!entity || !entity.position) return false;
+  const name = normalizeItemName(entity.name || entity.displayName || entity.username || "");
+  const display = normalizeItemName(entity.displayName || "");
+  if (name === "item") return true;
+  if (display === "item") return true;
+  if (String(entity.type || "").toLowerCase() === "object") return true;
+  return false;
+}
+
+function scanNearbyDropEntities(bot, centerPos, maxDistance = 5) {
+  if (!bot?.entities || !centerPos) {
+    return { count: 0, nearest: null, nearestDistance: Number.POSITIVE_INFINITY };
+  }
+  const maxDist = Math.max(1, Number(maxDistance || 5));
+  const drops = Object.values(bot.entities)
+    .filter((entity) => isItemDropEntity(entity))
+    .map((entity) => ({
+      entity,
+      centerDistance: entity.position.distanceTo(centerPos),
+      botDistance: bot.entity?.position?.distanceTo?.(entity.position) ?? Number.POSITIVE_INFINITY
+    }))
+    .filter((row) => Number.isFinite(row.centerDistance) && row.centerDistance <= maxDist)
+    .sort((a, b) => a.botDistance - b.botDistance);
+  return {
+    count: drops.length,
+    nearest: drops[0]?.entity || null,
+    nearestDistance: Number.isFinite(drops[0]?.botDistance) ? drops[0].botDistance : Number.POSITIVE_INFINITY
+  };
+}
+
 function selectBestCraftRecipe(recipes, item, bot, cfg, log = () => {}) {
   if (!Array.isArray(recipes) || !recipes.length) return null;
   const mcData = require("minecraft-data")(bot.version);
@@ -1021,10 +1096,41 @@ function selectBestCraftRecipe(recipes, item, bot, cfg, log = () => {}) {
   return scored[0]?.recipe || null;
 }
 
+function plannedCraftIngredients(args = {}) {
+  if (!Array.isArray(args.ingredients)) return [];
+  return args.ingredients
+    .map((ing) => ({
+      name: normalizeItemName(ing?.name),
+      count: Math.max(1, Number(ing?.count || 1))
+    }))
+    .filter((ing) => !!ing.name);
+}
+
+function craftIngredientDeficits(bot, ingredients, cfg = {}) {
+  const inv = inventorySnapshot(bot);
+  const deficits = [];
+  for (const ing of ingredients) {
+    const item = normalizeItemName(ing?.name);
+    const needed = Math.max(1, Number(ing?.count || 1));
+    if (!item) continue;
+    const have = equivalentInventoryCount(inv, item, cfg);
+    if (have < needed) {
+      deficits.push({
+        item,
+        needed,
+        have,
+        missing: needed - have
+      });
+    }
+  }
+  return deficits;
+}
+
 async function craftRecipeStep(bot, args, cfg, runCtx, log, ctx) {
   const item = normalizeItemName(args?.item);
   const count = Math.max(1, Number(args?.count || 1));
   const processType = normalizeItemName(args?.processType || "craft");
+  const ingredients = plannedCraftIngredients(args);
   if (!item) return { ok: false, code: "invalid_item", reason: "invalid craft item", nextNeed: "specify item", recoverable: false };
   if (processType !== "craft") {
     return {
@@ -1053,36 +1159,175 @@ async function craftRecipeStep(bot, args, cfg, runCtx, log, ctx) {
     tableBlock = ctx.stations.crafting_table || null;
   }
 
+  const targetCount = stepTargetInventoryCount(bot, item, count);
   let loops = 0;
-  while (inventoryCount(bot, item) < count) {
+  while (inventoryCount(bot, item) < targetCount) {
     if (isCancelled(runCtx)) return { ok: false, status: "cancel" };
     if (loops++ > 48) {
       return { ok: false, code: "craft_loop_limit", reason: `craft loop limit for ${item}`, nextNeed: `check ingredients for ${item}`, recoverable: false };
     }
 
-    const tableRecipes = bot.recipesFor(itemInfo.id, null, 1, tableBlock || null) || [];
-    const inventoryRecipes = tableBlock ? (bot.recipesFor(itemInfo.id, null, 1, null) || []) : [];
-    const recipeCandidates = [...tableRecipes, ...inventoryRecipes];
-    let recipe = selectBestCraftRecipe(recipeCandidates, outputItem, bot, cfg, log);
-    if (!recipe && args?.recipe) {
-      recipe = args.recipe;
+    if (station === "crafting_table") {
+      let activeTable = tableBlock;
+      if (!activeTable || !activeTable.position) {
+        activeTable = findNearbyStation(bot, "crafting_table", 8);
+      }
+      if (!activeTable || !activeTable.position) {
+        return {
+          ok: false,
+          code: "missing_table",
+          reason: "need crafting_table nearby",
+          nextNeed: "place crafting_table",
+          recoverable: false
+        };
+      }
+
+      const tableDist = bot.entity.position.distanceTo(activeTable.position);
+      if (tableDist > 4.5) {
+        const timeoutMs = moveTimeoutForDistance(cfg, tableDist);
+        const reachedTable = await moveNearWithReasoning(
+          bot,
+          activeTable.position,
+          2,
+          timeoutMs,
+          runCtx,
+          cfg,
+          log,
+          "craft_recipe_move_table"
+        );
+        if (!reachedTable) {
+          return {
+            ok: false,
+            code: "path_blocked",
+            reason: "path blocked to crafting table",
+            nextNeed: "move near crafting table",
+            recoverable: true
+          };
+        }
+      }
+      tableBlock = activeTable;
+      ctx.stations.crafting_table = activeTable;
     }
 
-    if (!recipe && item.endsWith("_planks")) {
-      const plankIds = Object.values(mcData.itemsByName)
-        .filter((it) => it && typeof it.name === "string" && it.name.endsWith("_planks"))
-        .map((it) => it.id);
-      for (const pid of plankIds) {
-        const candidates = [
-          ...(bot.recipesFor(pid, null, 1, tableBlock || null) || []),
-          ...(tableBlock ? (bot.recipesFor(pid, null, 1, null) || []) : [])
-        ];
-        recipe = selectBestCraftRecipe(candidates, item, bot, cfg, log);
-        if (recipe) break;
+    const maxProbeRetries = 2;
+    let probe = 0;
+    let recipe = null;
+    let preflightDone = false;
+    let lastProbeInfo = null;
+
+    while (!recipe && probe <= maxProbeRetries) {
+      const tableRecipes = bot.recipesFor(itemInfo.id, null, 1, tableBlock || null) || [];
+      const inventoryRecipes = tableBlock ? (bot.recipesFor(itemInfo.id, null, 1, null) || []) : [];
+      const recipeCandidates = [...tableRecipes, ...inventoryRecipes];
+      lastProbeInfo = {
+        tableCandidates: tableRecipes.length,
+        inventoryCandidates: inventoryRecipes.length,
+        totalCandidates: recipeCandidates.length
+      };
+      log({
+        type: "craft_recipe_probe",
+        item,
+        outputItem,
+        station,
+        probe: probe + 1,
+        hasTable: !!tableBlock,
+        ...lastProbeInfo
+      });
+
+      recipe = selectBestCraftRecipe(recipeCandidates, outputItem, bot, cfg, log);
+      if (!recipe && args?.recipe) {
+        recipe = args.recipe;
       }
+
+      if (!recipe && item.endsWith("_planks")) {
+        const plankIds = Object.values(mcData.itemsByName)
+          .filter((it) => it && typeof it.name === "string" && it.name.endsWith("_planks"))
+          .map((it) => it.id);
+        for (const pid of plankIds) {
+          const candidates = [
+            ...(bot.recipesFor(pid, null, 1, tableBlock || null) || []),
+            ...(tableBlock ? (bot.recipesFor(pid, null, 1, null) || []) : [])
+          ];
+          recipe = selectBestCraftRecipe(candidates, item, bot, cfg, log);
+          if (recipe) break;
+        }
+      }
+
+      if (!recipe && !preflightDone && ingredients.length) {
+        const deficits = craftIngredientDeficits(bot, ingredients, cfg);
+        if (deficits.length) {
+          log({
+            type: "craft_recipe_missing_ingredients",
+            item,
+            outputItem,
+            station,
+            deficits
+          });
+          for (const deficit of deficits) {
+            const target = inventoryCount(bot, deficit.item) + deficit.missing;
+            const ensured = await ensureItem(bot, deficit.item, target, cfg, runCtx, log, ctx);
+            const normalized = normalizeStepResult(ensured, "craft_recipe_preflight_failed");
+            if (normalized.status === "cancel") return normalized;
+            if (!normalized.ok) return normalized;
+          }
+        }
+        preflightDone = true;
+      }
+
+      if (!recipe && station === "crafting_table" && tableBlock?.position) {
+        const tableDist = bot.entity.position.distanceTo(tableBlock.position);
+        if (tableDist > 3.0) {
+          const reachedTable = await moveNearWithReasoning(
+            bot,
+            tableBlock.position,
+            1,
+            moveTimeoutForDistance(cfg, tableDist),
+            runCtx,
+            cfg,
+            log,
+            "craft_recipe_probe_table"
+          );
+          if (!reachedTable) {
+            return {
+              ok: false,
+              code: "path_blocked",
+              reason: "path blocked to crafting table",
+              nextNeed: "move near crafting table",
+              recoverable: true
+            };
+          }
+        }
+      }
+
+      if (!recipe && probe < maxProbeRetries) {
+        log({
+          type: "craft_recipe_retry",
+          item,
+          outputItem,
+          station,
+          probe: probe + 1,
+          nextProbe: probe + 2
+        });
+        const waited = await waitTicks(bot, 2, runCtx);
+        if (!waited) return { ok: false, status: "cancel" };
+      }
+      probe += 1;
     }
 
     if (!recipe) {
+      log({
+        type: "craft_recipe_fail_detail",
+        item,
+        outputItem,
+        station,
+        hasTable: !!tableBlock,
+        tableDistance: tableBlock?.position
+          ? Number(bot.entity.position.distanceTo(tableBlock.position).toFixed(2))
+          : null,
+        deficits: ingredients.length ? craftIngredientDeficits(bot, ingredients, cfg) : [],
+        localBlocks: localBlockSummary(bot, 4, 8),
+        ...lastProbeInfo
+      });
       return {
         ok: false,
         code: "recipe_unavailable",
@@ -1167,8 +1412,11 @@ function findCandidateBlocks(bot, blockNames, preferredBlocks, maxDistance, opti
       const directReach = dist <= 3.1;
       const moveCost = Number.isFinite(standDist) ? standDist : (directReach ? 0.5 : Number.POSITIVE_INFINITY);
       const standable = Number.isFinite(moveCost);
-      const score = prefRank * 1000 + (standable ? 0 : 800) + moveCost * 3 + dist + yDelta * 2;
-      return { block, standPos: stand?.standPos || null, score, dist, yDelta, standable };
+      const pickupSafe = hasAdjacentStandSpot(bot, block);
+      const noStandPenalty = standable ? 0 : (directReach ? 1200 : 2000);
+      const lowClearancePenalty = pickupSafe ? 0 : 300;
+      const score = prefRank * 1000 + noStandPenalty + lowClearancePenalty + moveCost * 3 + dist + yDelta * 2;
+      return { block, standPos: stand?.standPos || null, score, dist, yDelta, standable, pickupSafe };
     })
     .filter((row) => Number.isFinite(row.score))
     .sort((a, b) => {
@@ -1232,9 +1480,13 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
   const retriesPerRing = Math.max(1, Number(cfg.gatherExpandRetryPerRing || 2));
   const targetCandidateLimit = Math.max(1, Number(cfg.gatherTargetCandidates || 6));
   const targetFailLimit = Math.max(1, Number(cfg.gatherTargetFailLimit || 2));
+  const candidateBanMs = Math.max(1000, Number(cfg.gatherCandidateBanMs || 15000));
+  const dropRecoveryRetries = Math.max(1, Number(cfg.gatherDropRecoveryRetries || 2));
   const failedTargets = new Map();
 
-  while (inventoryCount(bot, item) < count) {
+  const targetCount = stepTargetInventoryCount(bot, item, count);
+  let confirmedGathered = 0;
+  while ((inventoryCount(bot, item) + confirmedGathered) < targetCount) {
     if (isCancelled(runCtx)) return { ok: false, status: "cancel" };
     const maxRing = rings[rings.length - 1] || 48;
     let gatheredThisLoop = false;
@@ -1256,23 +1508,35 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
           attempt
         });
 
+        const nowMs = Date.now();
+        for (const [key, rec] of failedTargets.entries()) {
+          if (!rec || typeof rec !== "object") {
+            failedTargets.delete(key);
+            continue;
+          }
+          if (nowMs - Number(rec.lastFailedAt || 0) >= candidateBanMs) {
+            failedTargets.delete(key);
+          }
+        }
         const blockedPositions = new Set(
           Array.from(failedTargets.entries())
-            .filter(([, fails]) => fails >= targetFailLimit)
+            .filter(([, rec]) => Number(rec?.fails || 0) >= targetFailLimit)
             .map(([key]) => key)
         );
+        if (blockedPositions.size > 0) {
+          log({
+            type: "gather_candidate_skip_recent_fail",
+            item,
+            radius,
+            attempt,
+            blockedCount: blockedPositions.size
+          });
+        }
         let target = findNearestCandidateBlock(bot, blockNames, preferredBlocks, radius, {
           blockSampleCount: cfg.gatherBlockSampleCount || 128,
           candidateLimit: targetCandidateLimit,
           excludePositions: blockedPositions
         });
-        if (!target && blockedPositions.size > 0) {
-          blockedPositions.clear();
-          target = findNearestCandidateBlock(bot, blockNames, preferredBlocks, radius, {
-            blockSampleCount: cfg.gatherBlockSampleCount || 128,
-            candidateLimit: targetCandidateLimit
-          });
-        }
         if (!target) {
           const nearby = localBlockSummary(bot, 4, 8);
           log({
@@ -1300,7 +1564,12 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
         const targetKey = blockPosKey(block.position);
         const markTargetFailed = () => {
           if (!targetKey) return;
-          failedTargets.set(targetKey, Number(failedTargets.get(targetKey) || 0) + 1);
+          const prev = failedTargets.get(targetKey);
+          const nextFails = Number(prev?.fails || 0) + 1;
+          failedTargets.set(targetKey, {
+            fails: nextFails,
+            lastFailedAt: Date.now()
+          });
         };
         const clearTargetFail = () => {
           if (!targetKey) return;
@@ -1347,7 +1616,7 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
             item,
             block: normalizeItemName(block.name),
             reason: "path_blocked",
-            failedCount: Number(failedTargets.get(targetKey) || 1)
+            failedCount: Number(failedTargets.get(targetKey)?.fails || 1)
           });
           const waitedMoveFail = await waitTicks(bot, 4, runCtx);
           if (!waitedMoveFail) return { ok: false, status: "cancel" };
@@ -1407,7 +1676,7 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
                       });
                       return {
                         ok: false,
-                        code: "missing_required_tool",
+                        code: "progression_blocked",
                         reason: `need ${needTool} for ${normalizeItemName(digBlock.name)}`,
                         nextNeed: `craft ${needTool}`,
                         recoverable: false
@@ -1427,7 +1696,7 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
                   });
                   return {
                     ok: false,
-                    code: "missing_required_tool",
+                    code: "progression_blocked",
                     reason: `need ${needTool} for ${normalizeItemName(digBlock.name)}`,
                     nextNeed: `craft ${needTool}`,
                     recoverable: false
@@ -1438,11 +1707,17 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
                   await bot.equip(toolItem, "hand");
                 } catch {
                   const needTool = minimumToolName(activeRequirement) || normalizeItemName(toolItem.name);
+                  log({
+                    type: "gather_tool_equip_fail",
+                    item,
+                    block: normalizeItemName(digBlock.name),
+                    needTool
+                  });
                   return {
                     ok: false,
-                    code: "missing_required_tool",
-                    reason: `need ${needTool} for ${normalizeItemName(digBlock.name)}`,
-                    nextNeed: `craft ${needTool}`,
+                    code: "progression_blocked",
+                    reason: `failed equipping ${needTool} for ${normalizeItemName(digBlock.name)}`,
+                    nextNeed: `equip ${needTool}`,
                     recoverable: false
                   };
                 }
@@ -1457,12 +1732,68 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
                 if (!isToolSufficient(equipped, activeRequirement)) {
                   return {
                     ok: false,
-                    code: "gather_tool_incompatible",
+                    code: "progression_blocked",
                     reason: `held tool incompatible for ${normalizeItemName(digBlock.name)}`,
                     nextNeed: `equip ${minimumToolName(activeRequirement) || activeRequirement.toolType}`,
                     recoverable: false
                   };
                 }
+              }
+            }
+          }
+          if (strictToolGate && activeRequirement) {
+            const currentHeld = normalizeItemName(bot.heldItem?.name || "");
+            if (!isToolSufficient(currentHeld, activeRequirement)) {
+              const toolNow = pickBestInventoryTool(bot, activeRequirement);
+              const needTool = minimumToolName(activeRequirement) || `${activeRequirement.minTier || "wooden"}_${activeRequirement.toolType}`;
+              if (!toolNow) {
+                log({
+                  type: "gather_tool_missing",
+                  item,
+                  block: normalizeItemName(digBlock.name),
+                  needTool
+                });
+                return {
+                  ok: false,
+                  code: "progression_blocked",
+                  reason: `need ${needTool} for ${normalizeItemName(digBlock.name)}`,
+                  nextNeed: `craft ${needTool}`,
+                  recoverable: false
+                };
+              }
+              try {
+                await bot.equip(toolNow, "hand");
+              } catch {
+                log({
+                  type: "gather_tool_equip_fail",
+                  item,
+                  block: normalizeItemName(digBlock.name),
+                  needTool
+                });
+                return {
+                  ok: false,
+                  code: "progression_blocked",
+                  reason: `failed equipping ${needTool} for ${normalizeItemName(digBlock.name)}`,
+                  nextNeed: `equip ${needTool}`,
+                  recoverable: false
+                };
+              }
+              const heldAfterEquip = normalizeItemName(bot.heldItem?.name || toolNow.name);
+              log({
+                type: "gather_tool_equip",
+                item,
+                block: normalizeItemName(digBlock.name),
+                equipped: heldAfterEquip,
+                toolRequirement: activeRequirement
+              });
+              if (!isToolSufficient(heldAfterEquip, activeRequirement)) {
+                return {
+                  ok: false,
+                  code: "progression_blocked",
+                  reason: `held tool incompatible for ${normalizeItemName(digBlock.name)}`,
+                  nextNeed: `equip ${needTool}`,
+                  recoverable: false
+                };
               }
             }
           }
@@ -1539,28 +1870,64 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
             });
             break;
           }
-          const movedForPickup = await moveNearWithReasoning(
-            bot,
-            block.position,
-            1,
-            Math.min(dynamicMoveTimeoutMs, 6000),
-            runCtx,
-            cfg,
-            log,
-            "gather_drop_pickup_move"
-          );
-          if (movedForPickup) {
+          for (let pickupTry = 1; pickupTry <= dropRecoveryRetries; pickupTry += 1) {
+            const dropScan = scanNearbyDropEntities(bot, block.position, 5);
+            log({
+              type: "gather_drop_scan",
+              item,
+              radius,
+              attempt,
+              pickupTry,
+              dropCount: dropScan.count,
+              nearestDropDistance: Number.isFinite(dropScan.nearestDistance) ? Number(dropScan.nearestDistance.toFixed(2)) : null
+            });
+            const pickupTarget = dropScan.nearest?.position || block.position;
+            const movedForPickup = await moveNearWithReasoning(
+              bot,
+              pickupTarget,
+              1,
+              Math.min(dynamicMoveTimeoutMs, 6000),
+              runCtx,
+              cfg,
+              log,
+              "gather_drop_recover_move"
+            );
+            log({
+              type: "gather_drop_recover_move",
+              item,
+              radius,
+              attempt,
+              pickupTry,
+              moved: movedForPickup
+            });
+            if (!movedForPickup) continue;
+
             const waitedClosePickup = await waitTicks(bot, 8, runCtx);
             if (!waitedClosePickup) return { ok: false, status: "cancel" };
             const afterClosePickup = inventoryCount(bot, item);
-            if (afterClosePickup > before) {
+            const postScan = scanNearbyDropEntities(bot, block.position, 5);
+            log({
+              type: "gather_pickup_retry",
+              item,
+              radius,
+              attempt,
+              pickupTry,
+              gained: Math.max(0, afterClosePickup - before),
+              dropCountBefore: dropScan.count,
+              dropCountAfter: postScan.count
+            });
+            const confirmedByDrop = dropScan.count > 0 && postScan.count < dropScan.count;
+            if (afterClosePickup > before || confirmedByDrop) {
               gatheredThisLoop = true;
               clearTargetFail();
+              if (afterClosePickup <= before && confirmedByDrop) {
+                confirmedGathered += 1;
+              }
               log({
                 type: "gather_dig_result",
                 item,
-                result: "ok_after_close_pickup",
-                gained: afterClosePickup - before
+                result: afterClosePickup > before ? "ok_after_close_pickup" : "ok_after_drop_confirm",
+                gained: Math.max(0, afterClosePickup - before)
               });
               reportProgress(runCtx, `gathered ${item}`, {
                 stepAction: "gather_block",
@@ -1569,6 +1936,9 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
               });
               break;
             }
+          }
+          if (gatheredThisLoop) {
+            break;
           }
           markTargetFailed();
           log({
@@ -1599,7 +1969,7 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
             });
             return {
               ok: false,
-              code: "gather_tool_incompatible",
+              code: "progression_blocked",
               reason: `need ${needTool} for ${blockName}`,
               nextNeed: `craft ${needTool}`,
               recoverable: false
@@ -1623,7 +1993,18 @@ async function gatherBlockStep(bot, args, cfg, runCtx, log) {
       }
       const fromRadius = maxRing;
       const toRadius = Math.max(fromRadius + 1, Number(cfg.missingResourceExpandedRadius || 120));
-      if (String(cfg.missingResourcePolicy || "ask_before_move").toLowerCase() === "ask_before_move") {
+      const policy = String(cfg.missingResourcePolicy || "ask_before_move").toLowerCase();
+      const criticalProgression = new Set(["log", "cobblestone", "coal", "raw_iron"]);
+      const requiresConfirm = policy === "ask_before_move" || criticalProgression.has(item);
+      log({
+        type: "resource_search_boundary",
+        item,
+        fromRadius,
+        toRadius,
+        policy,
+        requiresConfirm
+      });
+      if (requiresConfirm) {
         return {
           ok: false,
           code: "confirm_expand_search",
@@ -1653,7 +2034,8 @@ async function harvestCropStep(bot, args, cfg, runCtx, log) {
   const cropBlocks = Array.isArray(args?.cropBlocks) ? args.cropBlocks.map((n) => normalizeItemName(n)) : [];
   const radius = cfg.autoGatherRadius || cfg.craftGatherRadius || 48;
 
-  while (inventoryCount(bot, item) < count) {
+  const targetCount = stepTargetInventoryCount(bot, item, count);
+  while (inventoryCount(bot, item) < targetCount) {
     if (isCancelled(runCtx)) return { ok: false, status: "cancel" };
     const block = bot.findBlock({
       matching: (b) => !!b && cropBlocks.includes(normalizeItemName(b.name)),
@@ -1696,7 +2078,8 @@ async function killMobDropStep(bot, args, cfg, runCtx, log) {
   const timeoutMs = (cfg.taskTimeoutSec || 60) * 1000;
   const started = Date.now();
 
-  while (inventoryCount(bot, item) < count) {
+  const targetCount = stepTargetInventoryCount(bot, item, count);
+  while (inventoryCount(bot, item) < targetCount) {
     if (isCancelled(runCtx)) return { ok: false, status: "cancel" };
     if (Date.now() - started > timeoutMs) {
       return { ok: false, code: "target_unreachable", reason: `timed out hunting ${item}`, nextNeed: "move closer to mobs", recoverable: true };
@@ -1774,8 +2157,9 @@ async function stationRecipeStep(bot, args, cfg, runCtx, log, ctx) {
     };
   }
 
+  const targetCount = stepTargetInventoryCount(bot, item, count);
   let loops = 0;
-  while (inventoryCount(bot, item) < count) {
+  while (inventoryCount(bot, item) < targetCount) {
     if (isCancelled(runCtx)) return { ok: false, status: "cancel" };
     if (loops++ > 64) {
       return {
@@ -1903,8 +2287,9 @@ async function smeltRecipeStep(bot, args, cfg, runCtx, log, ctx) {
   }
 
   try {
+    const targetCount = stepTargetInventoryCount(bot, item, count);
     let loops = 0;
-    while (inventoryCount(bot, item) < count) {
+    while (inventoryCount(bot, item) < targetCount) {
       if (isCancelled(runCtx)) return { ok: false, status: "cancel" };
       if (loops++ > 96) {
         return {
@@ -2075,14 +2460,14 @@ async function executeGoalPlan(bot, goalPlan, cfg, runCtx, log, progress = null)
       action: step.action || null,
       msg: `start ${step.action}`
     });
-    const stepRunner = async () => {
-      if (step.action === "ensure_station") return ensureStation(bot, step.args?.station, cfg, runCtx, log, ctx);
-      if (step.action === "craft_recipe") return craftRecipeStep(bot, step.args, cfg, runCtx, log, ctx);
-      if (step.action === "station_recipe") return stationRecipeStep(bot, step.args, cfg, runCtx, log, ctx);
-      if (step.action === "gather_block") return gatherBlockStep(bot, step.args, cfg, runCtx, log);
-      if (step.action === "harvest_crop") return harvestCropStep(bot, step.args, cfg, runCtx, log);
-      if (step.action === "kill_mob_drop") return killMobDropStep(bot, step.args, cfg, runCtx, log);
-      if (step.action === "smelt_recipe") return smeltRecipeStep(bot, step.args, cfg, runCtx, log, ctx);
+    const stepRunner = async (activeRunCtx) => {
+      if (step.action === "ensure_station") return ensureStation(bot, step.args?.station, cfg, activeRunCtx, log, ctx);
+      if (step.action === "craft_recipe") return craftRecipeStep(bot, step.args, cfg, activeRunCtx, log, ctx);
+      if (step.action === "station_recipe") return stationRecipeStep(bot, step.args, cfg, activeRunCtx, log, ctx);
+      if (step.action === "gather_block") return gatherBlockStep(bot, step.args, cfg, activeRunCtx, log);
+      if (step.action === "harvest_crop") return harvestCropStep(bot, step.args, cfg, activeRunCtx, log);
+      if (step.action === "kill_mob_drop") return killMobDropStep(bot, step.args, cfg, activeRunCtx, log);
+      if (step.action === "smelt_recipe") return smeltRecipeStep(bot, step.args, cfg, activeRunCtx, log, ctx);
       return { ok: false, code: "unsupported_step", reason: `unsupported step ${step.action}`, nextNeed: "update planner", recoverable: false };
     };
 
@@ -2093,8 +2478,22 @@ async function executeGoalPlan(bot, goalPlan, cfg, runCtx, log, progress = null)
       localAttempts += 1;
       const stepTimeoutMs = effectiveStepTimeoutMs(step, cfg);
       let timeoutHandle = null;
+      const timeoutState = { cancelled: false };
+      const stepRunCtx = runCtx
+        ? {
+            ...runCtx,
+            isCancelled() {
+              return timeoutState.cancelled || (typeof runCtx.isCancelled === "function" ? runCtx.isCancelled() : !!runCtx.cancelled);
+            }
+          }
+        : {
+            isCancelled() {
+              return timeoutState.cancelled;
+            }
+          };
       const timeoutResult = new Promise((resolve) => {
         timeoutHandle = setTimeout(() => {
+          timeoutState.cancelled = true;
           try {
             bot.pathfinder?.setGoal?.(null);
             bot.clearControlStates?.();
@@ -2119,8 +2518,8 @@ async function executeGoalPlan(bot, goalPlan, cfg, runCtx, log, progress = null)
       result = await Promise.race([
         runStepWithCorrection(
           step.action,
-          stepRunner,
-          { bot, cfg, runCtx, log },
+          () => stepRunner(stepRunCtx),
+          { bot, cfg, runCtx: stepRunCtx, log },
           step.retryPolicy || {}
         ),
         timeoutResult

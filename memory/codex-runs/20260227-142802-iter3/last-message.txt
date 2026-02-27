@@ -1,0 +1,1 @@
+I’m starting with `memory/log.jsonl` and the listed crafting-related files to pinpoint the exact regression path.

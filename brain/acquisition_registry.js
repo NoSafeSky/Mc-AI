@@ -5,7 +5,7 @@ const {
   equivalentInventoryCount,
   isWoodEquivalent
 } = require("./item_equivalence");
-const { getRecipeVariants } = require("./recipe_db");
+const { getRecipeVariants, isItemSupportedInCoverage } = require("./recipe_db");
 
 const BLOCK_DROP_EQUIVALENTS = new Map([
   ["cobblestone", ["stone", "cobblestone", "cobbled_deepslate", "blackstone"]],
@@ -67,6 +67,11 @@ function isStoneTierCombatOrTool(item) {
   return /^stone_(sword|pickaxe|axe|shovel|hoe)$/.test(String(item || ""));
 }
 
+function isProgressionStationOutput(item) {
+  const name = String(item || "");
+  return name === "furnace" || name === "blast_furnace" || name === "smoker" || name === "stonecutter";
+}
+
 function ingredientSet(ingredients) {
   return new Set((ingredients || []).map((ing) => normalizeItemName(ing.name)));
 }
@@ -74,27 +79,30 @@ function ingredientSet(ingredients) {
 function computeStoneCompatibility(item, rawIngredients, ctx) {
   const policy = (ctx?.cfg?.recipeVariantPolicy || "overworld_safe").toLowerCase();
   if (policy !== "overworld_safe") return { score: 0, components: {} };
-  if (!isStoneTierCombatOrTool(item)) return { score: 0, components: {} };
+  if (!isStoneTierCombatOrTool(item) && !isProgressionStationOutput(item)) return { score: 0, components: {} };
 
   const names = ingredientSet(rawIngredients);
   const hasAllInInv = hasIngredientsInInventory(ctx?.snapshot?.inventory || {}, rawIngredients, ctx?.cfg || {});
   const resources = ctx?.snapshot?.nearbyResources || {};
-  if (hasAllInInv) return { score: -50, components: { allInInventory: -50 } };
 
   let score = 0;
   const components = {};
+  if (hasAllInInv) {
+    score -= 50;
+    components.allInInventory = -50;
+  }
 
   if (names.has("cobblestone")) {
-    score -= 10;
-    components.baseCobblestonePreference = -10;
+    score -= 12;
+    components.baseCobblestonePreference = -12;
   }
   if (names.has("cobbled_deepslate")) {
-    score += 38;
-    components.deepslatePenalty = 38;
+    score += 36;
+    components.deepslatePenalty = 36;
   }
-  if (names.has("blackstone")) {
-    score += 48;
-    components.blackstonePenalty = 48;
+  if (names.has("blackstone") && !hasAllInInv) {
+    score += 120;
+    components.blackstonePenalty = 120;
   }
 
   if (names.has("cobblestone") && resources.cobblestone?.available) {
@@ -106,8 +114,17 @@ function computeStoneCompatibility(item, rawIngredients, ctx) {
     components.deepslateNearbyFallback = -10;
   }
   if (names.has("blackstone") && resources.blackstone?.available && !resources.cobblestone?.available) {
-    score -= 10;
-    components.blackstoneNearbyFallback = -10;
+    score -= 6;
+    components.blackstoneNearbyFallback = -6;
+  }
+
+  const mode = String(ctx?.cfg?.craftCoverageMode || "legacy").toLowerCase();
+  if (mode === "overworld_v1") {
+    const outOfScope = rawIngredients.filter((ing) => !isItemSupportedInCoverage(ing.name, ctx?.cfg || {}));
+    if (outOfScope.length > 0 && !hasAllInInv) {
+      score += 500;
+      components.outOfScopeIngredientPenalty = 500;
+    }
   }
 
   return { score, components };
@@ -173,6 +190,26 @@ function scoreRecipeVariant(item, rawIngredients, normalizedIngredients, ctx) {
       ...wood.components
     }
   };
+}
+
+function computeVariantPriority(item, rawIngredients, ctx) {
+  const names = ingredientSet(rawIngredients);
+  const hasAllInInv = hasIngredientsInInventory(ctx?.snapshot?.inventory || {}, rawIngredients, ctx?.cfg || {});
+  let priority = 0;
+
+  if (String(item || "") === "furnace") {
+    if (names.has("cobblestone")) priority -= 50;
+    if (names.has("cobbled_deepslate")) priority += 20;
+    if (names.has("blackstone") && !hasAllInInv) priority += 180;
+  }
+
+  const mode = String(ctx?.cfg?.craftCoverageMode || "legacy").toLowerCase();
+  if (mode === "overworld_v1") {
+    const outOfScope = rawIngredients.filter((ing) => !isItemSupportedInCoverage(ing.name, ctx?.cfg || {}));
+    if (outOfScope.length > 0 && !hasAllInInv) priority += 300;
+  }
+
+  return priority;
 }
 
 function recipeVariantId(ingredients) {
@@ -271,11 +308,15 @@ function stationForRecipe(recipe) {
 }
 
 function getRecipeOptions(item, count, ctx) {
+  if (!isItemSupportedInCoverage(item, ctx?.cfg || {})) return [];
   const version = ctx?.bot?.version || ctx?.cfg?.version || "1.21.1";
   const variants = getRecipeVariants(item, {
     version,
     recipeExecutionScope: ctx?.cfg?.recipeExecutionScope || "craft_smelt_stations",
-    stationExecutionEnabled: ctx?.cfg?.stationExecutionEnabled || ctx?.cfg?.supportedStations
+    stationExecutionEnabled: ctx?.cfg?.stationExecutionEnabled || ctx?.cfg?.supportedStations,
+    craftCoverageMode: ctx?.cfg?.craftCoverageMode || "legacy",
+    craftRecipeManifestVersion: ctx?.cfg?.craftRecipeManifestVersion || "1.21.1-overworld-v1",
+    log: ctx?.log
   });
 
   const options = [];
@@ -292,6 +333,7 @@ function getRecipeOptions(item, count, ctx) {
     if (!ingredients.length) continue;
 
     const scoreInfo = scoreRecipeVariant(item, rawIngredients, ingredients, ctx);
+    const variantPriority = computeVariantPriority(item, rawIngredients, ctx);
     const decompressionPenalty = ingredients.some((ing) => /_block$/.test(ing.name) && !/_block$/.test(item))
       ? 40
       : 0;
@@ -313,6 +355,7 @@ function getRecipeOptions(item, count, ctx) {
       rawIngredients,
       cost: baseCost,
       compatibilityScore: Number(scoreInfo.score || 0),
+      variantPriority: Number(variantPriority || 0),
       scoreBreakdown: scoreInfo.components || {},
       variantId: variant.variantId
     };
@@ -351,6 +394,7 @@ function getRecipeOptions(item, count, ctx) {
         station: common.station,
         cost: common.cost,
         compatibilityScore: common.compatibilityScore,
+        variantPriority: common.variantPriority,
         scoreBreakdown: common.scoreBreakdown,
         ingredients: common.ingredients,
         rawIngredients: common.rawIngredients
@@ -363,6 +407,7 @@ function getRecipeOptions(item, count, ctx) {
 
 function getGatherOptions(item, count, ctx) {
   if (ctx?.cfg?.autoGatherEnabled === false) return [];
+  if (!isItemSupportedInCoverage(item, ctx?.cfg || {})) return [];
   if (item === "planks") return [];
 
   const mcData = ctx.mcData;
@@ -400,6 +445,7 @@ function getGatherOptions(item, count, ctx) {
 
 function getHarvestOption(item, count, ctx) {
   if (ctx?.cfg?.autoGatherEnabled === false) return null;
+  if (!isItemSupportedInCoverage(item, ctx?.cfg || {})) return null;
   const crops = CROP_SOURCES.get(item);
   if (!crops || !crops.length) return null;
   return {
@@ -414,6 +460,7 @@ function getHarvestOption(item, count, ctx) {
 
 function getMobDropOption(item, count, ctx) {
   if (ctx?.cfg?.autoGatherEnabled === false) return null;
+  if (!isItemSupportedInCoverage(item, ctx?.cfg || {})) return null;
   const mobs = MOB_DROP_SOURCES.get(item);
   if (!mobs || !mobs.length) return null;
   const nearby = Object.values(ctx.bot?.entities || {})
@@ -468,14 +515,35 @@ function getAcquisitionOptions(itemName, count, ctx) {
     }];
   }
 
-  return options.sort((a, b) => {
+  const sorted = options.sort((a, b) => {
     const aTotal = Number(a.cost || 0) + Number(a.compatibilityScore || 0);
     const bTotal = Number(b.cost || 0) + Number(b.compatibilityScore || 0);
     if (aTotal !== bTotal) return aTotal - bTotal;
+    const aPriority = Number(a.variantPriority || 0);
+    const bPriority = Number(b.variantPriority || 0);
+    if (aPriority !== bPriority) return aPriority - bPriority;
     if ((a.provider || "") !== (b.provider || "")) return String(a.provider || "").localeCompare(String(b.provider || ""));
     if ((a.variantId || "") !== (b.variantId || "")) return String(a.variantId || "").localeCompare(String(b.variantId || ""));
     return String(a.item || "").localeCompare(String(b.item || ""));
   });
+  if (typeof ctx?.log === "function") {
+    const chosen = sorted[0] || null;
+    if (chosen && (chosen.provider === "craft_recipe" || chosen.provider === "smelt_recipe" || chosen.provider === "station_recipe")) {
+      ctx.log({
+        type: "recipe_variant_selected",
+        item,
+        provider: chosen.provider,
+        processType: chosen.processType || null,
+        station: chosen.station || null,
+        variantId: chosen.variantId || null,
+        cost: Number(chosen.cost || 0),
+        compatibilityScore: Number(chosen.compatibilityScore || 0),
+        variantPriority: Number(chosen.variantPriority || 0),
+        ingredients: chosen.ingredients || []
+      });
+    }
+  }
+  return sorted;
 }
 
 function chooseAcquisitionOption(itemName, count, ctx) {

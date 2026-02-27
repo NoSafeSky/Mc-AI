@@ -1,0 +1,1 @@
+I’ve isolated a likely timeout-race root cause; next I’ll run craft-targeted tests to confirm current behavior.

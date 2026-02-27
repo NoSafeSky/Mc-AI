@@ -3,7 +3,7 @@ const {
   isLivingNonPlayerEntity,
   getCanonicalEntityName
 } = require("./entities");
-const { parseCraftRequest } = require("./crafting_catalog");
+const { parseCraftRequest, normalizeCraftItem, resolveDynamicItemName } = require("./crafting_catalog");
 
 const KNOWN_MOBS = new Set([
   "allay", "armadillo", "axolotl", "bat", "bee", "blaze", "bogged", "breeze", "camel", "cat",
@@ -104,6 +104,28 @@ function parseCombatIntent(t, bot) {
   return { type: "attackMob", mobType, source: "rules", confidence: 0.96 };
 }
 
+function parseGiveRequest(t, defaultCount = 1, version = "1.21.1") {
+  const giveMatch = /^(?:please\s+)?give\s+me\s+(?:(\d+|a|an)\s+)?(.+)$/.exec(t);
+  if (!giveMatch) return { isGivePhrase: false, item: null, count: defaultCount, rawItem: null };
+  let rawItem = String(giveMatch[2] || "")
+    .replace(/\b(for me|please|now)\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const countRaw = giveMatch[1];
+  let count = Number.parseInt(countRaw, 10);
+  if (!Number.isFinite(count) || count <= 0) {
+    count = (countRaw === "a" || countRaw === "an") ? 1 : defaultCount;
+  }
+  count = Math.max(1, Math.min(64, count));
+  const item = normalizeCraftItem(rawItem, version) || resolveDynamicItemName(rawItem, version);
+  return {
+    isGivePhrase: true,
+    item: item || null,
+    count,
+    rawItem
+  };
+}
+
 function parseNLU(text, cfg, bot) {
   if (!text) return { type: "none", source: "rules", confidence: 0 };
   const t = normalizeText(text);
@@ -134,6 +156,26 @@ function parseNLU(text, cfg, bot) {
   }
   if (t.includes("come here") || t.includes("come to me") || t === "come" || t.startsWith("come ")) {
     return { type: "come", target: cfg.owner, source: "rules", confidence: 0.98 };
+  }
+
+  const giveReq = parseGiveRequest(t, defaultCraftCount, bot?.version || cfg.version || "1.21.1");
+  if (giveReq.isGivePhrase) {
+    if (giveReq.item) {
+      return {
+        type: "giveItem",
+        item: giveReq.item,
+        count: giveReq.count || 1,
+        source: "rules",
+        confidence: 0.92
+      };
+    }
+    return {
+      type: "none",
+      source: "rules",
+      confidence: 0,
+      reason: "missing_item",
+      requested: giveReq.rawItem || null
+    };
   }
 
   if (t.includes("be creepy") || t.includes("creepy mode") || t.includes("creepy on")) {

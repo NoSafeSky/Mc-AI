@@ -60,3 +60,39 @@ test("parse route text returns normalized action route", () => {
   assert.equal(parsed.value.goals[0].type, "attackMob");
   assert.equal(parsed.value.goals[0].args.mobType, "pig");
 });
+
+test("goal schema accepts mission and give item goals", () => {
+  const out = validateRouteObject(
+    {
+      kind: "action",
+      confidence: 0.9,
+      goals: [
+        { type: "missionStart", args: {} },
+        { type: "giveItem", args: { item: "cobblestone", count: 4 } }
+      ]
+    },
+    { owner: "NoSafeSky", maxGoals: 5 }
+  );
+  assert.equal(out.ok, true);
+  assert.equal(out.value.goals[0].type, "missionStart");
+  assert.equal(out.value.goals[1].type, "giveItem");
+});
+
+test("goal schema normalizes deprecated run aliases", () => {
+  const out = validateRouteObject(
+    {
+      kind: "action",
+      confidence: 0.9,
+      goals: [
+        { type: "startObjectiveRun", args: {} },
+        { type: "runStatus", args: {} },
+        { type: "runNext", args: {} }
+      ]
+    },
+    { owner: "NoSafeSky", maxGoals: 5 }
+  );
+  assert.equal(out.ok, true);
+  assert.equal(out.value.goals[0].type, "missionStart");
+  assert.equal(out.value.goals[1].type, "missionStatus");
+  assert.equal(out.value.goals[2].type, "missionSuggest");
+});

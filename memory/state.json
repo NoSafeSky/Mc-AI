@@ -2,5 +2,147 @@
   "creepy": true,
   "stopped": false,
   "base": null,
-  "doNotTouch": []
+  "doNotTouch": [],
+  "objectiveRun": {
+    "id": "run_1772048651612",
+    "type": "dragon_run",
+    "status": "running",
+    "phase": "bootstrap",
+    "needs": [
+      {
+        "item": "wooden_pickaxe",
+        "count": 1,
+        "required": 1,
+        "have": 0
+      },
+      {
+        "item": "crafting_table",
+        "count": 1,
+        "required": 1,
+        "have": 0
+      },
+      {
+        "item": "planks",
+        "count": 6,
+        "required": 8,
+        "have": 2
+      }
+    ],
+    "ownerLeader": "NoSafeSky",
+    "startedAt": 1772048651612,
+    "updatedAt": 1772053082447,
+    "lastSuggestion": {
+      "id": "suggest_1772053060985",
+      "summary": "craft crafting_table x1",
+      "reason": "missing crafting_table for phase bootstrap",
+      "intent": {
+        "type": "craftItem",
+        "item": "crafting_table",
+        "count": 1,
+        "source": "rules",
+        "confidence": 0.9
+      },
+      "acceptedAt": 1772053080306
+    },
+    "lastAcceptedTaskId": 5,
+    "lastFailure": {
+      "at": 1772048684715,
+      "stepId": "phase_bootstrap_craft_wooden_pickaxe",
+      "action": "craftItem",
+      "status": "fail",
+      "code": "recipe_unavailable",
+      "reason": "craft wooden_pickaxe: recipe unavailable for wooden_pickaxe (next: required ingredients or station)",
+      "nextNeed": "required ingredients or station"
+    },
+    "checkpoints": [
+      {
+        "at": 1772048673798,
+        "phase": "bootstrap",
+        "subphase": null,
+        "reason": "interval",
+        "inventory": {
+          "oak_log": 1,
+          "oak_planks": 2,
+          "stick": 4
+        },
+        "position": {
+          "x": -118.34080985864408,
+          "y": 80,
+          "z": -302.5
+        }
+      }
+    ],
+    "paused": false
+  },
+  "missionState": {
+    "id": "run_1772048651612",
+    "type": "dragon_run",
+    "status": "active",
+    "phase": "bootstrap",
+    "needs": [
+      {
+        "item": "wooden_pickaxe",
+        "count": 1,
+        "required": 1,
+        "have": 0
+      },
+      {
+        "item": "crafting_table",
+        "count": 1,
+        "required": 1,
+        "have": 0
+      },
+      {
+        "item": "planks",
+        "count": 6,
+        "required": 8,
+        "have": 2
+      }
+    ],
+    "ownerLeader": "NoSafeSky",
+    "startedAt": 1772048651612,
+    "updatedAt": 1772053082447,
+    "lastSuggestion": {
+      "id": "suggest_1772053060985",
+      "summary": "craft crafting_table x1",
+      "reason": "missing crafting_table for phase bootstrap",
+      "intent": {
+        "type": "craftItem",
+        "item": "crafting_table",
+        "count": 1,
+        "source": "rules",
+        "confidence": 0.9
+      },
+      "acceptedAt": 1772053080306
+    },
+    "lastAcceptedTaskId": 5,
+    "lastFailure": {
+      "at": 1772048684715,
+      "stepId": "phase_bootstrap_craft_wooden_pickaxe",
+      "action": "craftItem",
+      "status": "fail",
+      "code": "recipe_unavailable",
+      "reason": "craft wooden_pickaxe: recipe unavailable for wooden_pickaxe (next: required ingredients or station)",
+      "nextNeed": "required ingredients or station"
+    },
+    "checkpoints": [
+      {
+        "at": 1772048673798,
+        "phase": "bootstrap",
+        "subphase": null,
+        "reason": "interval",
+        "inventory": {
+          "oak_log": 1,
+          "oak_planks": 2,
+          "stick": 4
+        },
+        "position": {
+          "x": -118.34080985864408,
+          "y": 80,
+          "z": -302.5
+        }
+      }
+    ],
+    "paused": false
+  }
 }

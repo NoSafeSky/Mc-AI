@@ -119,7 +119,9 @@ function resolveRecipeAnswer(text, botVersion = "1.21.1", cfg = {}, snapshot = n
   let variants = getRecipeVariants(item, {
     version: botVersion,
     recipeExecutionScope: cfg.recipeExecutionScope || "craft_smelt_stations",
-    stationExecutionEnabled: cfg.stationExecutionEnabled || cfg.supportedStations
+    stationExecutionEnabled: cfg.stationExecutionEnabled || cfg.supportedStations,
+    craftCoverageMode: cfg.craftCoverageMode || "legacy",
+    craftRecipeManifestVersion: cfg.craftRecipeManifestVersion || "1.21.1-overworld-v1"
   })
     .map((variant) => {
       const rawIngredients = (variant.ingredients || []).map((ing) => ({

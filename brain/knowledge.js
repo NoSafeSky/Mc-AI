@@ -7,9 +7,12 @@ function normalizeItemName(name) {
 
 function inventoryRows(bot) {
   if (!bot?.inventory) return [];
+  if (typeof bot.inventory.items === "function") {
+    const listed = bot.inventory.items();
+    if (Array.isArray(listed)) return listed;
+  }
   const slotRows = Array.isArray(bot.inventory.slots) ? bot.inventory.slots.filter(Boolean) : [];
   if (slotRows.length) return slotRows;
-  if (typeof bot.inventory.items === "function") return bot.inventory.items();
   return [];
 }
 

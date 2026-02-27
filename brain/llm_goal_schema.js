@@ -12,7 +12,27 @@ const ALLOWED_GOAL_TYPES = new Set([
   "stop",
   "stopall",
   "resume",
-  "craftBasic"
+  "craftBasic",
+  "missionStart",
+  "missionStatus",
+  "missionSuggest",
+  "missionAccept",
+  "missionReject",
+  "missionPause",
+  "missionResume",
+  "missionAbort",
+  "queueStatus",
+  "queueClear",
+  // deprecated aliases kept for compatibility
+  "startObjectiveRun",
+  "runNext",
+  "runStatus",
+  "runPause",
+  "runResume",
+  "runAbort",
+  "giveItem",
+  "stashNow",
+  "regroup"
 ]);
 
 const ALLOWED_ROUTE_KINDS = new Set(["action", "chat", "reject", "none"]);
@@ -47,12 +67,23 @@ function normalizeTarget(target, owner) {
   return t || owner || null;
 }
 
+function normalizeGoalType(type) {
+  const t = String(type || "").trim();
+  if (t === "startObjectiveRun") return "missionStart";
+  if (t === "runNext") return "missionSuggest";
+  if (t === "runStatus") return "missionStatus";
+  if (t === "runPause") return "missionPause";
+  if (t === "runResume") return "missionResume";
+  if (t === "runAbort") return "missionAbort";
+  return t;
+}
+
 function validateGoalSpec(goal, options = {}) {
   if (!goal || typeof goal !== "object" || Array.isArray(goal)) {
     return { ok: false, reasonCode: "invalid_goal_shape", reason: "goal must be an object" };
   }
 
-  const type = String(goal.type || "").trim();
+  const type = normalizeGoalType(goal.type);
   if (!ALLOWED_GOAL_TYPES.has(type)) {
     return { ok: false, reasonCode: "unknown_goal_type", reason: `unknown goal type: ${type || "empty"}` };
   }
@@ -125,6 +156,60 @@ function validateGoalSpec(goal, options = {}) {
       value: {
         type,
         args: { target },
+        confidence,
+        ...(priority !== undefined ? { priority } : {})
+      }
+    };
+  }
+
+  if (type === "regroup") {
+    const target = normalizeTarget(args.target || goal.target, owner);
+    return {
+      ok: true,
+      value: {
+        type,
+        args: { target: target || owner || null },
+        confidence,
+        ...(priority !== undefined ? { priority } : {})
+      }
+    };
+  }
+
+  if (type === "giveItem") {
+    const item = normalizeItemName(args.item || goal.item);
+    const count = clamp(args.count ?? goal.count, 1, 64, 1);
+    if (!item) {
+      return { ok: false, reasonCode: "missing_item", reason: "giveItem requires args.item" };
+    }
+    return {
+      ok: true,
+      value: {
+        type,
+        args: { item, count },
+        confidence,
+        ...(priority !== undefined ? { priority } : {})
+      }
+    };
+  }
+
+  if (
+    type === "missionStart"
+    || type === "missionStatus"
+    || type === "missionSuggest"
+    || type === "missionAccept"
+    || type === "missionReject"
+    || type === "missionPause"
+    || type === "missionResume"
+    || type === "missionAbort"
+    || type === "queueStatus"
+    || type === "queueClear"
+    || type === "stashNow"
+  ) {
+    return {
+      ok: true,
+      value: {
+        type,
+        args: {},
         confidence,
         ...(priority !== undefined ? { priority } : {})
       }

@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "checklist:live": "node scripts/run-checklist-live.js",
+    "checklist:suite": "powershell -ExecutionPolicy Bypass -File .\\scripts\\run-checklist-suite.ps1"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +17,7 @@
     "mineflayer": "^4.34.0",
     "mineflayer-collectblock": "^1.6.0",
     "mineflayer-pathfinder": "^2.4.5",
+    "mineflayer-pvp": "^1.3.2",
     "mineflayer-tool": "^1.2.0",
     "node-fetch": "^2.7.0",
     "prismarine-entity": "^2.5.0",

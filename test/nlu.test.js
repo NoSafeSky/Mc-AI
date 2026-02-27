@@ -45,3 +45,16 @@ test("recipe question is non-action intent", () => {
   assert.equal(intent.type, "none");
   assert.equal(intent.reason, "recipe_question");
 });
+
+test("parse give me a wooden pickaxe", () => {
+  const intent = parseNLU("give me a wooden pickaxe", cfg, null);
+  assert.equal(intent.type, "giveItem");
+  assert.equal(intent.item, "wooden_pickaxe");
+  assert.equal(intent.count, 1);
+});
+
+test("parse give me unknown item returns missing_item", () => {
+  const intent = parseNLU("give me banana sword", cfg, null);
+  assert.equal(intent.type, "none");
+  assert.equal(intent.reason, "missing_item");
+});

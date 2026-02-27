@@ -15,7 +15,10 @@ const CRAFT_GRAPH = {
   stone_pickaxe: { output: 1, ingredients: { cobblestone: 3, stick: 2 }, needsTable: true },
   stone_axe: { output: 1, ingredients: { cobblestone: 3, stick: 2 }, needsTable: true },
   stone_shovel: { output: 1, ingredients: { cobblestone: 1, stick: 2 }, needsTable: true },
-  stone_hoe: { output: 1, ingredients: { cobblestone: 2, stick: 2 }, needsTable: true }
+  stone_hoe: { output: 1, ingredients: { cobblestone: 2, stick: 2 }, needsTable: true },
+
+  // Station prerequisite for iron progression.
+  furnace: { output: 1, ingredients: { cobblestone: 8 }, needsTable: true }
 };
 
 function addEnsureSteps(item, count, steps, recursion = new Set()) {

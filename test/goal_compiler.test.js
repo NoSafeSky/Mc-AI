@@ -45,3 +45,61 @@ test("goal compiler rejects invalid mob targets", () => {
   assert.equal(compiled.ok, false);
   assert.equal(compiled.reasonCode, "unknown_target");
 });
+
+test("goal compiler maps mission control and give item goals", () => {
+  const compiled = compileGoalSpecsToIntents(
+    [
+      { type: "missionStart", args: {} },
+      { type: "giveItem", args: { item: "cobblestone", count: 8 } }
+    ],
+    { version: "1.21.1", entities: {} },
+    { owner: "NoSafeSky" },
+    { source: "llm", confidence: 0.9 }
+  );
+  assert.equal(compiled.ok, true);
+  assert.equal(compiled.intents[0].type, "missionStart");
+  assert.equal(compiled.intents[1].type, "giveItem");
+  assert.equal(compiled.intents[1].item, "cobblestone");
+  assert.equal(compiled.intents[1].count, 8);
+});
+
+test("goal compiler normalizes deprecated run aliases to mission intents", () => {
+  const compiled = compileGoalSpecsToIntents(
+    [
+      { type: "startObjectiveRun", args: {} },
+      { type: "runStatus", args: {} },
+      { type: "runAbort", args: {} }
+    ],
+    { version: "1.21.1", entities: {} },
+    { owner: "NoSafeSky" },
+    { source: "llm", confidence: 0.9 }
+  );
+  assert.equal(compiled.ok, true);
+  assert.equal(compiled.intents[0].type, "missionStart");
+  assert.equal(compiled.intents[1].type, "missionStatus");
+  assert.equal(compiled.intents[2].type, "missionAbort");
+});
+
+test("goal compiler rewrites craftItem to giveItem for give phrase command text", () => {
+  const compiled = compileGoalSpecsToIntents(
+    [{ type: "craftItem", args: { item: "wooden_pickaxe", count: 1 } }],
+    { version: "1.21.1", entities: {} },
+    { owner: "NoSafeSky" },
+    { source: "llm", confidence: 0.9, commandText: "give me a wooden pickaxe" }
+  );
+  assert.equal(compiled.ok, true);
+  assert.equal(compiled.intents[0].type, "giveItem");
+  assert.equal(compiled.intents[0].item, "wooden_pickaxe");
+  assert.equal(compiled.intents[0].count, 1);
+});
+
+test("goal compiler give phrase with missing item returns missing_item", () => {
+  const compiled = compileGoalSpecsToIntents(
+    [{ type: "craftItem", args: { item: "wooden_pickaxe", count: 1 } }],
+    { version: "1.21.1", entities: {} },
+    { owner: "NoSafeSky" },
+    { source: "llm", confidence: 0.9, commandText: "give me banana blade" }
+  );
+  assert.equal(compiled.ok, false);
+  assert.equal(compiled.reasonCode, "missing_item");
+});

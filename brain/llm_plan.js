@@ -77,7 +77,7 @@ function buildSystemPrompt({ allowAction, allowChat, owner }) {
     chatLine,
     "Allowed kinds: action, chat, reject, none.",
     "For action use goals with this GoalSpec schema:",
-    '{"type":"craftItem|attackMob|attackHostile|huntFood|follow|come|explore|harvest|stop|stopall|resume|craftBasic","args":{},"priority":0}',
+    '{"type":"craftItem|attackMob|attackHostile|huntFood|follow|come|explore|harvest|stop|stopall|resume|craftBasic|missionStart|missionStatus|missionSuggest|missionAccept|missionReject|missionPause|missionResume|missionAbort|queueStatus|queueClear|giveItem|stashNow|regroup","args":{},"priority":0}',
     "Never output mineflayer API calls or raw code.",
     `Default owner target is: ${owner || "owner"}.`
   ].join("\n");
@@ -96,6 +96,9 @@ function buildUserPrompt(message, cfg, context = {}) {
     "Examples:",
     '{"kind":"action","confidence":0.92,"goals":[{"type":"craftItem","args":{"item":"wooden_sword","count":1}}]}',
     '{"kind":"action","confidence":0.9,"goals":[{"type":"attackMob","args":{"mobType":"pig"}}]}',
+    '{"kind":"action","confidence":0.9,"goals":[{"type":"missionStart","args":{}}]}',
+    '{"kind":"action","confidence":0.87,"goals":[{"type":"missionStatus","args":{}}]}',
+    '{"kind":"action","confidence":0.86,"goals":[{"type":"missionSuggest","args":{}}]}',
     '{"kind":"chat","confidence":0.88,"reply":"Minecraft is a sandbox game where you gather resources and build things."}',
     '{"kind":"reject","confidence":0.92,"reasonCode":"unsafe_request"}',
     '{"kind":"none","confidence":0.1}'
@@ -238,6 +241,29 @@ function goalToLegacyStep(goal, cfg) {
     };
   }
   if (type === "stop" || type === "stopall" || type === "resume") {
+    return { action: "wait", seconds: 1 };
+  }
+  if (
+    type === "missionStart"
+    || type === "missionStatus"
+    || type === "missionSuggest"
+    || type === "missionAccept"
+    || type === "missionReject"
+    || type === "missionPause"
+    || type === "missionResume"
+    || type === "missionAbort"
+    || type === "queueStatus"
+    || type === "queueClear"
+    || type === "giveItem"
+    || type === "stashNow"
+    || type === "regroup"
+    || type === "startObjectiveRun"
+    || type === "runStatus"
+    || type === "runPause"
+    || type === "runResume"
+    || type === "runAbort"
+    || type === "runNext"
+  ) {
     return { action: "wait", seconds: 1 };
   }
 

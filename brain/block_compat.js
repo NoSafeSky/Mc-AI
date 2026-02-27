@@ -66,9 +66,12 @@ function isToolSufficient(itemName, requirement) {
 
 function inventoryRows(bot) {
   if (!bot?.inventory) return [];
+  if (typeof bot.inventory.items === "function") {
+    const listed = bot.inventory.items();
+    if (Array.isArray(listed)) return listed;
+  }
   const slots = Array.isArray(bot.inventory.slots) ? bot.inventory.slots.filter(Boolean) : [];
   if (slots.length) return slots;
-  if (typeof bot.inventory.items === "function") return bot.inventory.items();
   return [];
 }
 

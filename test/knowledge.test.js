@@ -7,10 +7,29 @@ const {
   buildCapabilitySnapshot
 } = require("../brain/knowledge");
 
-test("canonicalInventory normalizes namespaced names and merges counts", () => {
+test("canonicalInventory prefers inventory.items() over slots", () => {
   const bot = {
     inventory: {
-      items: () => [],
+      items: () => [
+        { name: "minecraft:oak_log", count: 2 },
+        { name: "minecraft:stick", count: 4 }
+      ],
+      slots: [
+        null,
+        { name: "oak_log", count: 9 },
+        { name: "minecraft:stick", count: 1 }
+      ]
+    }
+  };
+
+  const inv = canonicalInventory(bot);
+  assert.equal(inv.oak_log, 2);
+  assert.equal(inv.stick, 4);
+});
+
+test("canonicalInventory falls back to slots when items() is unavailable", () => {
+  const bot = {
+    inventory: {
       slots: [
         null,
         { name: "minecraft:oak_log", count: 2 },
