@@ -35,7 +35,7 @@ const {
   missionPhaseLine,
   missionPlanLine
 } = require("./brain/objective_manager");
-const { stashStatus, giveItemToOwner, stashNow } = require("./brain/team_inventory");
+const { stashStatus, giveItemToOwner, stashNow, dropAllInventory } = require("./brain/team_inventory");
 const {
   enqueueCommand,
   dequeueCommand,
@@ -48,6 +48,8 @@ const cfg = Object.assign(
     commandPrefix: "bot",
     commandNoPrefixOwner: true,
     intentConfidenceThreshold: 0.72,
+    llmProvider: "groq",
+    llmModel: "qwen/qwen3-32b",
     llmPrimaryRouting: true,
     llmRouteAllOwnerPrompts: true,
     llmRouteNonOwnerChat: true,
@@ -61,6 +63,7 @@ const cfg = Object.assign(
     taskTimeoutSec: 60,
     taskNoProgressTimeoutSec: 45,
     taskProgressHeartbeatSec: 3,
+    disableTimeouts: false,
     maxTaskDistance: 32,
     noTargetTimeoutSec: 8,
     craftJobTimeoutSec: 90,
@@ -81,6 +84,7 @@ const cfg = Object.assign(
     dependencyMaxNodes: 1200,
     dependencyPlanTimeoutMs: 8000,
     supportedStations: ["inventory", "crafting_table", "furnace", "smoker", "blast_furnace", "stonecutter", "smithing_table"],
+    stationSearchRadius: 32,
     recipeExecutionScope: "craft_smelt_stations",
     craftCoverageMode: "legacy",
     craftRecipeManifestVersion: "1.21.1-overworld-v1",
@@ -93,9 +97,15 @@ const cfg = Object.assign(
     gatherBlockSampleCount: 128,
     gatherTargetCandidates: 6,
     gatherTargetFailLimit: 2,
+    gatherCandidateBanMs: 15000,
+    gatherLogCandidateBanMs: 45000,
+    gatherLogSameTreeFollowups: 2,
+    gatherTreeFailLimit: 2,
     gatherRadiusSteps: [24, 48, 72],
     gatherStepTimeoutSec: 12000,
     gatherExpandRetryPerRing: 2,
+    gatherDropRecoveryRetries: 2,
+    gatherDropRecoverMoveTimeoutMs: 2500,
     autoGatherTimeoutSec: 90,
     replanOnRecoverableFail: true,
     maxReplansPerGoal: 3,
@@ -132,15 +142,14 @@ const cfg = Object.assign(
     coopObjectiveType: "dragon_run",
     leaderFollowerMode: true,
     objectiveAssistantMode: true,
-    objectiveAutoStartPhrases: ["lets beat minecraft", "beat minecraft", "start run"],
+    objectiveAutoStartPhrases: [],
     tacticalLlmEnabled: true,
-    tacticalLlmProvider: "ollama",
-    tacticalLlmModel: "qwen3:14b",
+    tacticalLlmProvider: "groq",
+    tacticalLlmModel: "qwen/qwen3-32b",
     tacticalLlmTimeoutMs: 1800,
     tacticalLlmMinConfidence: 0.65,
     tacticalLlmMaxCallsPerMin: 12,
     tacticalLlmEventOnly: true,
-    deterministicFallbackOnLlmFail: true,
     movementProfile: "human_cautious",
     movementLookSmoothingDegPerTick: 12,
     movementMicroPauseChance: 0.10,
@@ -165,7 +174,11 @@ const cfg = Object.assign(
     logCompactMode: true,
     logMuteEvents: [],
     logMobSpawns: false,
-    logEntityPackets: false
+    logEntityPackets: false,
+    smeltTransferRetryLimit: 10,
+    smeltInputTransferRetryLimit: 6,
+    smeltNoStateChangeMs: 40000,
+    goalAutonomy: false
   },
   JSON.parse(fs.readFileSync("./config.json", "utf8"))
 );
@@ -354,7 +367,7 @@ function parseGiveItemPhrase(text, version = "1.21.1", defaultCount = 1) {
 
 function looksActionable(text) {
   const t = String(text || "").toLowerCase();
-  return /\b(kill|attack|hunt|slay|follow|come|stop|resume|harvest|chop|craft|explore|seek|find|collect|gather|build|mine|bring|run|mission|stash|give|regroup|queue)\b/.test(t);
+  return /\b(kill|attack|hunt|slay|follow|come|stop|resume|harvest|chop|craft|explore|seek|find|collect|gather|build|mine|bring|run|mission|stash|give|regroup|queue|drop|toss|throw)\b/.test(t);
 }
 
 function isActionableIntent(intent) {
@@ -377,6 +390,7 @@ function intentSummary(intent) {
     return `intent: craftItem ${intent.item} x${intent.count || 1} (${source})${needs}`;
   }
   if (intent.type === "giveItem" && intent.item) return `intent: giveItem ${intent.item} x${intent.count || 1} (${source})`;
+  if (intent.type === "dropAllItems") return `intent: dropAllItems (${source})`;
   if (intent.type === "missionStart") return `intent: missionStart (${source})`;
   if (intent.type === "missionStatus" || intent.type === "missionPause" || intent.type === "missionResume" || intent.type === "missionAbort" || intent.type === "missionSuggest" || intent.type === "missionAccept" || intent.type === "missionReject" || intent.type === "queueStatus" || intent.type === "queueClear") {
     return `intent: ${intent.type} (${source})`;
@@ -391,6 +405,7 @@ function summarizeGoal(goal) {
   if (type === "craftItem") return `craftItem:${args.item || "?"}x${args.count || 1}`;
   if (type === "attackMob") return `attackMob:${args.mobType || "?"}`;
   if (type === "giveItem") return `giveItem:${args.item || "?"}x${args.count || 1}`;
+  if (type === "dropAllItems") return "dropAllItems";
   if (
     type === "missionStart" || type === "missionStatus" || type === "missionSuggest"
     || type === "missionAccept" || type === "missionReject" || type === "missionPause"
@@ -409,11 +424,13 @@ function summarizeIntent(intent) {
   if (intent.type === "craftItem") return `craftItem:${intent.item || "?"}x${intent.count || 1}`;
   if (intent.type === "attackMob") return `attackMob:${intent.mobType || "?"}`;
   if (intent.type === "giveItem") return `giveItem:${intent.item || "?"}x${intent.count || 1}`;
+  if (intent.type === "dropAllItems") return "dropAllItems";
   if (
     intent.type === "missionStart" || intent.type === "missionStatus" || intent.type === "missionSuggest"
     || intent.type === "missionAccept" || intent.type === "missionReject" || intent.type === "missionPause"
     || intent.type === "missionResume" || intent.type === "missionAbort"
     || intent.type === "queueStatus" || intent.type === "queueClear" || intent.type === "stashNow"
+    || intent.type === "dropAllItems"
     || intent.type === "startObjectiveRun" || intent.type === "runStatus" || intent.type === "runPause"
     || intent.type === "runResume" || intent.type === "runAbort" || intent.type === "runNext"
   ) return intent.type;
@@ -439,6 +456,7 @@ function isNoReply(text) {
 }
 
 function schedulePendingDecisionTimeout() {
+  if (cfg.disableTimeouts === true) return;
   if (!pendingDecision) return;
   if (pendingDecisionTimer) clearTimeout(pendingDecisionTimer);
   const delay = Math.max(1, pendingDecision.expiresAt - Date.now());
@@ -530,7 +548,11 @@ bot.once("spawn", () => {
   baseMovements.allowParkour = false;
   baseMovements.canDig = false; // avoid mining during general movement
   bot.pathfinder.setMovements(baseMovements);
-  startAutonomy(bot, () => state, (s) => { state = s; saveState(state); }, log, cfg);
+  if (cfg.goalAutonomy === true) {
+    startAutonomy(bot, () => state, (s) => { state = s; saveState(state); }, log, cfg);
+  } else {
+    log({ type: "autonomy_disabled" });
+  }
   startIdleFollowController();
 });
 
@@ -552,6 +574,16 @@ function routeRejectMessage(reasonCode) {
   if (code.includes("missing_item")) return "can't: specify item";
   if (code.includes("too_many_goals")) return "can't: request too broad";
   return "can't: unsupported request";
+}
+
+function routeFailureMessage(reasonCode, provider) {
+  const code = String(reasonCode || "llm_unavailable").toLowerCase();
+  const src = String(provider || cfg.llmProvider || "llm");
+  if (code.includes("llm_timeout")) return `can't: ${src} timeout. try again.`;
+  if (code.includes("llm_provider_unreachable")) return `can't: ${src} unavailable. check provider.`;
+  if (code.includes("llm_thinking_only_response")) return `can't: ${src} returned no final answer.`;
+  if (code.includes("llm_empty_response") || code.includes("chat_no_reply")) return `can't: ${src} returned empty response.`;
+  return `can't: ${src} unavailable.`;
 }
 
 function previewCraftIntent(intent, username, text) {
@@ -639,6 +671,7 @@ function isMissionRejectReply(text) {
 }
 
 function scheduleMissionSuggestionTimeout() {
+  if (cfg.disableTimeouts === true) return;
   if (!pendingMissionSuggestion) return;
   if (pendingMissionSuggestionTimer) clearTimeout(pendingMissionSuggestionTimer);
   const delay = Math.max(1, pendingMissionSuggestion.expiresAt - Date.now());
@@ -709,6 +742,7 @@ async function drainAssistantQueue() {
   if (queueDrainBusy) return;
   if (activeTask) return;
   if (state?.stopped) return;
+  if (pendingDecision) return;
   queueDrainBusy = true;
   try {
     while (!state?.stopped && !activeTask && assistantQueue.length) {
@@ -725,7 +759,7 @@ async function drainAssistantQueue() {
         bot.chat(`queue: executing ${summarizeIntent(next.item.intent)}.`);
       }
       const taskResult = await executeIntentTask(next.item.intent, true);
-      if (taskResult?.status === "pending_confirm") break;
+      if (pendingDecision) break;
     }
   } finally {
     queueDrainBusy = false;
@@ -1054,8 +1088,20 @@ async function executeIntentTask(intent, isOwner) {
         fromRadius,
         toRadius
       });
+      lastTaskFailure = {
+        at: Date.now(),
+        taskId: runCtx.id,
+        intent: intent.type,
+        code: taskResult.code || "confirm_expand_search",
+        reason: taskResult.reason || `no ${item} nearby`,
+        nextNeed: taskResult.nextNeed || `expand search to ${toRadius}`
+      };
       bot.chat(`can't find ${item} within ${fromRadius}. expand to ${toRadius} and continue? (yes/no)`);
-      return { status: "pending_confirm", taskId: runCtx.id };
+      return {
+        ...taskResult,
+        status: "fail",
+        taskId: runCtx.id
+      };
     }
 
     if (taskResult?.status === "fail" || taskResult?.status === "timeout") {
@@ -1070,6 +1116,9 @@ async function executeIntentTask(intent, isOwner) {
     }
 
     const out = taskResult || { status: "fail", reason: "unknown task result" };
+    if (out.status === "success" && isOwner) {
+      bot.chat("Done!");
+    }
     if (!Object.prototype.hasOwnProperty.call(out, "taskId")) out.taskId = runCtx.id;
     return out;
   } catch (e) {
@@ -1119,9 +1168,10 @@ async function handleChat(username, message, source = "chat") {
   const ownerLower = String(ownerCommandText || "").toLowerCase().trim();
   let forcedIntent = null;
 
-  if (pendingDecision && Date.now() > pendingDecision.expiresAt) {
+  if (cfg.disableTimeouts !== true && pendingDecision && Date.now() > pendingDecision.expiresAt) {
     const expired = pendingDecision;
     clearPendingDecision();
+    scheduleQueueDrain();
     log({
       type: "confirm_expand_search_timeout",
       taskId: expired.taskId,
@@ -1150,6 +1200,7 @@ async function handleChat(username, message, source = "chat") {
     } else if (isNoReply(lower)) {
       const pending = pendingDecision;
       clearPendingDecision();
+      scheduleQueueDrain();
       log({
         type: "confirm_expand_search_no",
         taskId: pending.taskId,
@@ -1162,10 +1213,11 @@ async function handleChat(username, message, source = "chat") {
       return;
     } else if (looksActionable(ownerCommandText)) {
       clearPendingDecision();
+      scheduleQueueDrain();
     }
   }
 
-  if (isOwner && pendingMissionSuggestion && Date.now() > pendingMissionSuggestion.expiresAt) {
+  if (cfg.disableTimeouts !== true && isOwner && pendingMissionSuggestion && Date.now() > pendingMissionSuggestion.expiresAt) {
     const expired = pendingMissionSuggestion;
     clearMissionSuggestion();
     log({
@@ -1199,6 +1251,13 @@ async function handleChat(username, message, source = "chat") {
     else if (/^mission\s+start$/.test(ownerLower) || /^start\s+run$/.test(ownerLower) || /^run\s+start$/.test(ownerLower)) forcedIntent = { type: "missionStart", source: "rules", confidence: 1 };
     else if (/^queue\s+status$/.test(ownerLower)) forcedIntent = { type: "queueStatus", source: "rules", confidence: 1 };
     else if (/^queue\s+clear$/.test(ownerLower)) forcedIntent = { type: "queueClear", source: "rules", confidence: 1 };
+    else if (
+      /^dropall$/.test(ownerLower)
+      || /^(drop|toss|throw)\s+(?:my\s+|bot'?s\s+|bot\s+|bots\s+)?(?:items?|inventory|inv|stuff|loot)$/.test(ownerLower)
+      || /^(drop|toss|throw)\s+all(?:\s+(?:my|bot'?s|bot|bots))?(?:\s+(?:items?|inventory|inv|stuff|loot))?$/.test(ownerLower)
+    ) {
+      forcedIntent = { type: "dropAllItems", source: "rules", confidence: 1 };
+    }
   }
 
   // HARD kill-switch (owner only)
@@ -1417,27 +1476,35 @@ async function handleChat(username, message, source = "chat") {
   if (isOwner && lower === `${prefix} status`) {
     const sup = activeTask?.supervisor?.getState?.();
     const mission = ensureMissionState(state, cfg);
+    const now = Date.now();
     if (!sup) {
+      let status = "idle";
+      let msg = "-";
+      let pendingSuffix = "";
       if (pendingDecision) {
-        const left = Math.max(0, Math.ceil((pendingDecision.expiresAt - Date.now()) / 1000));
-        bot.chat(`status: pending expand ${pendingDecision.item} ${pendingDecision.fromRadius}->${pendingDecision.toRadius} ttl:${left}s`);
+        const left = Math.max(0, Math.ceil((pendingDecision.expiresAt - now) / 1000));
+        status = "pending";
+        msg = `expand ${pendingDecision.item} ${pendingDecision.fromRadius}->${pendingDecision.toRadius}`;
+        pendingSuffix = ` pending:${pendingDecision.item} ${pendingDecision.fromRadius}->${pendingDecision.toRadius} ttl:${left}s`;
       } else if (pendingMissionSuggestion) {
-        const left = Math.max(0, Math.ceil((pendingMissionSuggestion.expiresAt - Date.now()) / 1000));
-        bot.chat(`status: pending mission suggestion ${formatMissionSuggestion(pendingMissionSuggestion)} ttl:${left}s`);
+        const left = Math.max(0, Math.ceil((pendingMissionSuggestion.expiresAt - now) / 1000));
+        status = "pending";
+        msg = `mission ${pendingMissionSuggestion.summary}`;
+        pendingSuffix = ` missionPending:${pendingMissionSuggestion.summary} ttl:${left}s`;
       } else if (mission && mission.status && mission.status !== "idle") {
-        bot.chat(missionStatusLine(state, bot, cfg, log));
-      } else {
-        bot.chat("status: idle");
+        status = mission.status;
+        msg = `${mission.phase || "mission"} ${mission.lastSuggestionSummary || mission.lastAcceptedSummary || "-"}`.trim();
       }
+      bot.chat(`status: ${status} step:- elapsed:0s state:0s heartbeat:0s kind:state msg:${msg}${pendingSuffix}`);
       return;
     }
-    const now = Date.now();
-    const sinceProgressSec = Math.max(0, Math.floor((now - (sup.lastProgressAt || now)) / 1000));
+    const sinceStateSec = Math.max(0, Math.floor((now - (sup.lastStateProgressAt || sup.lastProgressAt || now)) / 1000));
+    const sinceHeartbeatSec = Math.max(0, Math.floor((now - (sup.lastHeartbeatAt || sup.lastProgressAt || now)) / 1000));
     const elapsedSec = Math.max(0, Math.floor((sup.elapsedMs || 0) / 1000));
     const pendingSuffix = pendingDecision
       ? ` pending:${pendingDecision.item} ${pendingDecision.fromRadius}->${pendingDecision.toRadius}`
       : (pendingMissionSuggestion ? ` missionPending:${pendingMissionSuggestion.summary}` : "");
-    bot.chat(`status: ${sup.status} step:${sup.currentStepAction || "-"} elapsed:${elapsedSec}s last:${sinceProgressSec}s msg:${sup.lastProgressMsg || "-"}${pendingSuffix}`);
+    bot.chat(`status: ${sup.status} step:${sup.currentStepAction || "-"} elapsed:${elapsedSec}s state:${sinceStateSec}s heartbeat:${sinceHeartbeatSec}s kind:${sup.lastProgressKind || "state"} msg:${sup.lastProgressMsg || "-"}${pendingSuffix}`);
     return;
   }
 
@@ -1555,13 +1622,17 @@ async function handleChat(username, message, source = "chat") {
     }
   }
 
+  const routeFailure = route ? getLastRouteFailure() : null;
+
   if (!intents.length) {
     if (compileFailure && isOwner) {
       bot.chat(routeRejectMessage(compileFailure.reasonCode));
       return;
     }
+  }
+
+  if (!intents.length) {
     if (cfg.chatEnabled && (cfg.chatReplyMode || "short") !== "off") {
-      const routeFailure = getLastRouteFailure();
       if (routeFailure?.reason) {
         log({
           type: "chat_no_reply",
@@ -1571,6 +1642,9 @@ async function handleChat(username, message, source = "chat") {
           provider: routeFailure.provider || cfg.llmProvider,
           status: routeFailure.status
         });
+        if (isOwner) {
+          bot.chat(routeFailureMessage(routeFailure.reason, routeFailure.provider));
+        }
       }
     }
     return;
@@ -1639,18 +1713,38 @@ async function handleChat(username, message, source = "chat") {
     }
 
     if (intent.type === "stopall") {
+      state.stopped = true;
+      saveState(state);
+      if (activeTask) activeTask.cancelled = true;
+      bot.pathfinder.setGoal(null);
+      bot.clearControlStates();
       const cleared = clearQueue(assistantQueue);
       if (cleared.cleared > 0) {
         log({ type: "queue_clear", cleared: cleared.cleared, reason: "stopall" });
       }
       clearMissionSuggestion();
       clearPendingDecision();
+      bot.chat("ok.");
+      log({ type: "stopall", by: username });
+      return;
     }
 
     if (intent.type === "stashNow") {
       const stashed = await stashNow(bot, cfg, log);
       if (stashed.ok) bot.chat(`stash: moved ${stashed.moved}`);
       else bot.chat(`stash: ${stashed.reason}`);
+      return;
+    }
+
+    if (intent.type === "dropAllItems") {
+      const dropped = await dropAllInventory(bot, log);
+      if (dropped.ok) {
+        bot.chat(`dropped all items (${dropped.dropped}).`);
+      } else if (dropped.code === "empty_inventory") {
+        bot.chat("dropall: inventory empty");
+      } else {
+        bot.chat(`can't drop all: ${dropped.reason}`);
+      }
       return;
     }
 

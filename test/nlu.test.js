@@ -35,6 +35,31 @@ test("parse stop everything", () => {
   assert.equal(intent.type, "stopall");
 });
 
+test("parse stopall", () => {
+  const intent = parseNLU("stopall", cfg, null);
+  assert.equal(intent.type, "stopall");
+});
+
+test("parse drop all items", () => {
+  const intent = parseNLU("drop all items", cfg, null);
+  assert.equal(intent.type, "dropAllItems");
+});
+
+test("parse dropall", () => {
+  const intent = parseNLU("dropall", cfg, null);
+  assert.equal(intent.type, "dropAllItems");
+});
+
+test("parse drop all", () => {
+  const intent = parseNLU("drop all", cfg, null);
+  assert.equal(intent.type, "dropAllItems");
+});
+
+test("parse drop inventory", () => {
+  const intent = parseNLU("drop inventory", cfg, null);
+  assert.equal(intent.type, "dropAllItems");
+});
+
 test("parse hello bot", () => {
   const intent = parseNLU("hello bot", cfg, null);
   assert.equal(intent.type, "none");

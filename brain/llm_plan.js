@@ -120,7 +120,7 @@ async function llmPlanRoute(message, cfg, state, context = {}) {
 
   const timeoutMs = Number(cfg.llmPlanTimeoutMs || cfg.llmTimeoutMs || 8000);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = cfg?.disableTimeouts === true ? null : setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     if (provider === "groq") {
@@ -216,7 +216,7 @@ async function llmPlanRoute(message, cfg, state, context = {}) {
     });
     return null;
   } finally {
-    clearTimeout(timeout);
+    if (timeout) clearTimeout(timeout);
   }
 }
 

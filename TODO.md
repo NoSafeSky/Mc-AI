@@ -1,10 +1,17 @@
-## TODO (goal-driven autonomy + LLM)
+## TODO
 
-- [x] Update config surface: epsilon (bandit), llmTimeoutMs, model name, safeMode flag, goalAutonomy toggle (default on)
-- [x] Perception layer: snapshot lightweight world state (time/night, health/hunger, armor tier, nearby mobs/players, nearby blocks of interest, inventory key items)
-- [x] Goal/heuristic layer: select goal (gather_wood, gather_stone, gather_iron, food, craft_basic, explore, follow_owner) from perception
-- [x] Action set expansion: autonomous harvest/forage/craft/roam/follow-near/stalk/freeze/chat/idle; respect Safe mode controls (now removed)
-- [ ] Bandit integration: persist policy.json, context = perception+goal, epsilon from config, feedback via rate good/bad, owner-only policy stat command
-- [x] Command surface: keep existing commands; add goal on/off; stalk remains no-dig; LLM for all players; add harvest command
-- [ ] Logging/observability: log perception snapshot, goal+action, policy updates, errors, Ollama/Gemini failures, kicks; startup dry-check
-- [ ] Manual checks: owner commands, stopall/resume, autonomy ticks with/without safeMode, feedback updates policy.json
+### v5.4 follow-up
+- [ ] Run live validation on flat-ground, hillside, cliff-edge, and dropped-log recovery cases.
+- [ ] Capture new real-world gather failures from `memory/log.jsonl` and turn them into replay fixtures.
+- [ ] Add a focused `bot debug gather` command for live target/stand diagnostics.
+- [ ] Expose productive-vs-heartbeat counters in `bot status`.
+
+### Reliability backlog
+- [ ] Expand terrain stress QA for forests with water, leaves overhangs, and partial trunk obstruction.
+- [ ] Rename any remaining `reasoner_step_*` wording that implies gameplay fallback autonomy.
+- [ ] Add more explicit checklist automation around `bot status` field formatting under idle, pending, and active states.
+
+### Not Planned For v5.4
+- [ ] Autonomous progression runner.
+- [ ] Owner-confirm relaxation.
+- [ ] Broad LLM architecture rewrite.

@@ -11,6 +11,10 @@ function toNumberArray(value, fallback) {
   return fallback;
 }
 
+function timeoutsDisabled(cfg = {}) {
+  return cfg?.disableTimeouts === true;
+}
+
 function getPolicy(cfg = {}, policy = {}) {
   return {
     rings: toNumberArray(policy.rings || cfg.reasoningPlacementRings, [4, 8, 12]),
@@ -309,8 +313,11 @@ async function runWithSelfCorrection(stepName, fn, policy = {}, ctx = {}) {
   const cfg = ctx.cfg || {};
   const runCtx = ctx.runCtx;
   const p = getPolicy(cfg, policy);
+  const maxCorrections = timeoutsDisabled(cfg)
+    ? Math.min(Math.max(0, Number(p.maxCorrections || 0)), 2)
+    : Math.max(0, Number(p.maxCorrections || 0));
 
-  for (let attempt = 0; attempt <= p.maxCorrections; attempt++) {
+  for (let attempt = 0; attempt <= maxCorrections; attempt++) {
     if (runCtx?.isCancelled?.()) return { ok: false, status: "cancel", recoverable: false, code: "cancelled", reason: "cancelled" };
     log({ type: "reasoner_try", step: stepName, attempt });
     const result = await fn({ attempt });
@@ -318,9 +325,9 @@ async function runWithSelfCorrection(stepName, fn, policy = {}, ctx = {}) {
     if (result?.status === "cancel") return result;
 
     const recoverable = !!result?.recoverable;
-    if (!recoverable || attempt >= p.maxCorrections) {
+    if (!recoverable || attempt >= maxCorrections) {
       log({
-        type: "reasoner_step_giveup",
+        type: "reasoner_step_fail",
         step: stepName,
         attempt,
         recoverable,
@@ -332,7 +339,7 @@ async function runWithSelfCorrection(stepName, fn, policy = {}, ctx = {}) {
 
     const candidate = findRepositionCandidate(bot, { ...p, cfg, log });
     if (!candidate) {
-      log({ type: "reasoner_step_giveup", step: stepName, attempt, recoverable: true, code: "no_reposition_candidate", reason: "no valid reposition candidate" });
+      log({ type: "reasoner_step_fail", step: stepName, attempt, recoverable: true, code: "no_reposition_candidate", reason: "no valid reposition candidate" });
       return {
         ok: false,
         recoverable: false,
@@ -351,7 +358,12 @@ async function runWithSelfCorrection(stepName, fn, policy = {}, ctx = {}) {
       z: candidate.standPos.z,
       score: candidate.score
     });
-    const moved = await moveToPosition(bot, candidate.standPos, p.moveTimeoutMs, runCtx);
+    const moved = await moveToPosition(
+      bot,
+      candidate.standPos,
+      Math.max(1000, Number(p.moveTimeoutMs || 12000)),
+      runCtx
+    );
     log({
       type: "reasoner_reposition",
       step: stepName,

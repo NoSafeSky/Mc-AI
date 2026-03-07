@@ -135,6 +135,53 @@ function connectChatClient({ host, port, version, username, timeoutMs = 25000 })
   });
 }
 
+function matchesText(value, matcher) {
+  const text = String(value || "");
+  if (matcher instanceof RegExp) return matcher.test(text);
+  if (Array.isArray(matcher)) return matcher.some((entry) => matchesText(text, entry));
+  return text.includes(String(matcher || ""));
+}
+
+function createChatCapture(bot) {
+  const entries = [];
+  const push = (sender, message, source) => {
+    if (message === undefined || message === null) return;
+    entries.push({
+      at: Date.now(),
+      sender: sender || null,
+      message: String(message),
+      source
+    });
+  };
+
+  bot.on("chat", (username, message) => push(username, message, "chat"));
+  bot.on("whisper", (username, message) => push(username, message, "whisper"));
+  bot.on("messagestr", (message, position, _jsonMsg, sender) => {
+    push(sender, message, `messagestr:${position || "unknown"}`);
+  });
+
+  return {
+    mark() {
+      return entries.length;
+    },
+    since(mark = 0) {
+      return entries.slice(mark);
+    },
+    async waitFor(predicate, timeoutMs, startMark = entries.length, pollMs = 200) {
+      const started = Date.now();
+      while (Date.now() - started < timeoutMs) {
+        const seen = entries.slice(startMark);
+        const match = seen.find(predicate);
+        if (match) {
+          return { ok: true, match, seen, elapsedMs: Date.now() - started };
+        }
+        await sleep(pollMs);
+      }
+      return { ok: false, match: null, seen: entries.slice(startMark), elapsedMs: Date.now() - started };
+    }
+  };
+}
+
 async function run() {
   const args = parseArgs(process.argv.slice(2));
   const root = path.resolve(__dirname, "..");
@@ -206,6 +253,8 @@ async function run() {
       username: cfg.owner
     });
     startedBots.push(ownerClient);
+    const ownerChats = createChatCapture(ownerClient);
+    const prefix = cfg.commandPrefix || "bot";
     addStep("owner chat client connect", true);
 
     let nonOwnerClient = null;
@@ -224,15 +273,24 @@ async function run() {
 
     const sendOwner = async (message) => {
       runner.drain();
+      const chatMark = ownerChats.mark();
       ownerClient.chat(message);
       await sleep(100);
+      return { chatMark };
     };
 
-    await sendOwner("hi");
+    const waitForOwnerReply = (chatMark, matcher, timeoutMs = 10000) => ownerChats.waitFor(
+      (entry) => matchesText(entry.message, matcher),
+      timeoutMs,
+      chatMark
+    );
+
+    const hiSend = await sendOwner("hi");
     const hi = await runner.waitFor((e) => e.type === "llm_chat_sent" && e.to === cfg.owner, 30000);
     const hiExtra = await runner.collectFor(2500);
-    addStep("hi -> chat reply only", hi.ok && ![...hi.seen, ...hiExtra].some((e) => e.type === "task_start"), {
-      reason: hi.ok ? null : "no llm_chat_sent to owner"
+    const hiReply = await waitForOwnerReply(hiSend.chatMark, /./, 10000);
+    addStep("hi -> chat reply only", hi.ok && hiReply.ok && ![...hi.seen, ...hiExtra].some((e) => e.type === "task_start"), {
+      reason: hi.ok && hiReply.ok ? null : "missing owner-visible chat reply or llm_chat_sent event"
     });
 
     await sendOwner("let's beat minecraft");
@@ -278,7 +336,7 @@ async function run() {
       reason: rejected.ok ? null : "no mission_reject event"
     });
 
-    await sendOwner("craft me a wooden sword");
+    const woodSend = await sendOwner("craft me a wooden sword");
     const woodStart = await runner.waitFor(
       (e) => e.type === "task_start" && e.intent && e.intent.type === "craftItem" && String(e.intent.item || "").includes("wooden_sword"),
       40000
@@ -294,6 +352,12 @@ async function run() {
       reason: woodStart.ok && woodTerminal.ok ? null : "wooden sword task did not reach terminal state",
       taskStart: eventSnippet(woodStart.match),
       terminal: eventSnippet(woodTerminal.match)
+    });
+    const woodDone = woodTerminal.ok && woodTerminal.match?.type === "task_success"
+      ? await waitForOwnerReply(woodSend.chatMark, /Done!/i, 15000)
+      : { ok: false, reason: "wood task did not succeed" };
+    addStep("successful owner task says Done!", woodDone.ok, {
+      reason: woodDone.ok ? null : "no Done! chat after successful owner task"
     });
 
     await sendOwner("craft me a stone sword");
@@ -314,9 +378,46 @@ async function run() {
       terminal: eventSnippet(stoneTerminal.match)
     });
 
-    await sendOwner("bot queue clear");
+    const dropAllSend = await sendOwner("dropall");
+    const dropAllReply = await waitForOwnerReply(dropAllSend.chatMark, [/dropped all items/i, /dropall: inventory empty/i, /can't drop all:/i], 20000);
+    addStep("dropall explicit response", dropAllReply.ok, {
+      reason: dropAllReply.ok ? null : "no explicit dropall response"
+    });
+
+    const dropInventorySend = await sendOwner("drop inventory");
+    const dropInventoryReply = await waitForOwnerReply(dropInventorySend.chatMark, [/dropped all items/i, /dropall: inventory empty/i, /can't drop all:/i], 20000);
+    addStep("drop inventory explicit response", dropInventoryReply.ok, {
+      reason: dropInventoryReply.ok ? null : "no explicit drop inventory response"
+    });
+
+    const statusSend = await sendOwner(`${prefix} status`);
+    const statusReply = await waitForOwnerReply(
+      statusSend.chatMark,
+      /status:\s+\S+\s+step:.*\s+elapsed:\d+s\s+state:\d+s\s+heartbeat:\d+s\s+kind:\S+\s+msg:/i,
+      10000
+    );
+    addStep("bot status explicit response", statusReply.ok, {
+      reason: statusReply.ok ? null : "no normalized status reply"
+    });
+
+    const lastfailSend = await sendOwner(`${prefix} lastfail`);
+    const lastfailReply = await waitForOwnerReply(lastfailSend.chatMark, /lastfail:/i, 10000);
+    addStep("bot lastfail explicit response", lastfailReply.ok, {
+      reason: lastfailReply.ok ? null : "no lastfail reply"
+    });
+
+    const queueStatusSend = await sendOwner(`${prefix} queue status`);
+    const queueStatusReply = await waitForOwnerReply(queueStatusSend.chatMark, /queue:/i, 10000);
+    addStep("bot queue status explicit response", queueStatusReply.ok, {
+      reason: queueStatusReply.ok ? null : "no queue status reply"
+    });
+
+    const qclearSend = await sendOwner(`${prefix} queue clear`);
     const qclear = await runner.waitFor((e) => e.type === "queue_clear", 10000);
-    addStep("queue clear event", qclear.ok, { reason: qclear.ok ? null : "no queue_clear event" });
+    const qclearReply = await waitForOwnerReply(qclearSend.chatMark, /queue:\s+cleared/i, 10000);
+    addStep("queue clear event", qclear.ok && qclearReply.ok, {
+      reason: qclear.ok && qclearReply.ok ? null : "missing queue_clear event or owner-visible queue clear reply"
+    });
 
     if (nonOwnerClient) {
       runner.drain();
@@ -337,6 +438,12 @@ async function run() {
     });
     addStep("idle follow paused observed", all.some((e) => e.type === "idle_follow_paused"), {
       reason: all.some((e) => e.type === "idle_follow_paused") ? null : "no idle_follow_paused in run"
+    });
+
+    const stopallSend = await sendOwner("stopall");
+    const stopallReply = await waitForOwnerReply(stopallSend.chatMark, /\bok\./i, 10000);
+    addStep("stopall explicit response", stopallReply.ok, {
+      reason: stopallReply.ok ? null : "no stopall acknowledgment"
     });
   } finally {
     for (const b of startedBots) {

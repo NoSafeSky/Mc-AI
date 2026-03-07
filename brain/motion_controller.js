@@ -11,6 +11,18 @@ function isCancelled(runCtx) {
   return !!runCtx?.isCancelled?.();
 }
 
+function timeoutsDisabled(cfg = {}) {
+  return cfg?.disableTimeouts === true;
+}
+
+function reportProgress(runCtx, message, extra = {}) {
+  try {
+    if (typeof runCtx?.reportProgress === "function") {
+      runCtx.reportProgress(message, extra);
+    }
+  } catch {}
+}
+
 async function waitTicksCancelable(bot, ticks, runCtx) {
   let left = Math.max(0, Number(ticks || 0));
   while (left > 0) {
@@ -137,17 +149,47 @@ async function moveNearHuman(bot, pos, radius, timeoutMs, runCtx, cfg = {}, log 
   applyMovementProfile(bot, cfg, log);
   bot.pathfinder.setGoal(new goals.GoalNear(pos.x, pos.y, pos.z, radius));
   const started = Date.now();
+  const configuredNoProgressMs = Number(cfg.movementNoProgressTimeoutMs);
+  const defaultNoProgressMs = cfg.disableTimeouts === true
+    ? 12000
+    : (Math.max(5, Number(cfg.taskNoProgressTimeoutSec || 45)) * 1000);
+  const noProgressMs = Math.max(
+    1000,
+    Number.isFinite(configuredNoProgressMs) && configuredNoProgressMs > 0
+      ? configuredNoProgressMs
+      : defaultNoProgressMs
+  );
   let bestDistance = Number.POSITIVE_INFINITY;
+  let lastImprovementAt = started;
+  let lastProgressAt = 0;
   let lastLookAt = 0;
   let lastPause = 0;
 
-  while (Date.now() - started < timeoutMs) {
+  while (timeoutsDisabled(cfg) || (Date.now() - started < timeoutMs)) {
     if (isCancelled(runCtx)) return { status: "cancel" };
     const dist = bot.entity.position.distanceTo(pos);
-    if (dist < bestDistance) bestDistance = dist;
+    if (dist + 0.05 < bestDistance) {
+      bestDistance = dist;
+      lastImprovementAt = Date.now();
+    }
     if (dist <= radius) return { status: "success" };
 
     const now = Date.now();
+    if (now - lastProgressAt >= 2000) {
+      reportProgress(runCtx, `moving (${dist.toFixed(1)}m)`, {
+        stepAction: runCtx?.currentStepAction || "move",
+        distance: Number(dist.toFixed(2))
+      });
+      lastProgressAt = now;
+    }
+    if (now - lastImprovementAt >= noProgressMs) {
+      return {
+        status: "timeout",
+        code: "path_blocked",
+        reason: `path stalled (${context})`,
+        recoverable: true
+      };
+    }
     if (humanLikeEnabled(cfg) && now - lastLookAt >= 600) {
       const targetLook = new Vec3(pos.x + 0.5, pos.y + 0.7, pos.z + 0.5);
       await smoothLookAt(bot, targetLook, cfg, runCtx);

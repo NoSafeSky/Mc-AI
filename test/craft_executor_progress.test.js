@@ -115,3 +115,63 @@ test("step timeout returns explicit step_timeout failure", async () => {
   assert.equal(events.some((e) => e.type === "step_terminal" && e.status === "fail"), true);
 });
 
+test("stall guard retries and fails explicitly when step hangs with timeouts disabled", async () => {
+  const events = [];
+  const runCtx = {
+    id: 203,
+    cancelled: false,
+    isCancelled() {
+      return this.cancelled;
+    },
+    setStep() {},
+    reportProgress() {}
+  };
+
+  const bot = {
+    version: "1.21.1",
+    entity: { position: new Vec3(0, 64, 0) },
+    inventory: { items: () => [] },
+    findBlocks: () => [],
+    blockAt: () => null,
+    pathfinder: { setGoal() {} },
+    clearControlStates() {},
+    waitForTicks: async () => new Promise(() => {})
+  };
+
+  const goalPlan = {
+    ok: true,
+    goalId: "goal_stall_guard",
+    item: "oak_log",
+    count: 1,
+    constraints: { timeoutSec: 5 },
+    steps: [
+      {
+        id: "goal_stall_guard_s1",
+        action: "gather_block",
+        args: { item: "oak_log", count: 1, blockNames: ["oak_log"] },
+        retryPolicy: {},
+        timeoutMs: 50
+      }
+    ]
+  };
+
+  const result = await executeGoalPlan(
+    bot,
+    goalPlan,
+    {
+      disableTimeouts: true,
+      stepStallGuardMs: 120,
+      stepStallRetryCount: 1,
+      gatherRadiusSteps: [24],
+      gatherExpandRetryPerRing: 1
+    },
+    runCtx,
+    (evt) => events.push(evt)
+  );
+
+  assert.equal(result.status, "fail");
+  assert.equal(result.code, "step_stalled");
+  assert.equal(events.some((e) => e.type === "step_stall"), true);
+  assert.equal(events.some((e) => e.type === "step_retry" && e.reason === "step_stalled"), true);
+  assert.equal(events.some((e) => e.type === "step_terminal" && e.status === "fail"), true);
+});

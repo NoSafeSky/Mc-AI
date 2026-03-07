@@ -422,7 +422,7 @@ function getGatherOptions(item, count, ctx) {
   if (!blockNames.length) return [];
 
   const preferredBlocks = item === "cobblestone"
-    ? ["cobblestone", "stone", "cobbled_deepslate", "blackstone"].filter((name) => blockNames.includes(name))
+    ? ["stone", "cobblestone", "cobbled_deepslate", "blackstone"].filter((name) => blockNames.includes(name))
     : [...blockNames];
 
   const preferredFirst = preferredBlocks[0] || blockNames[0];

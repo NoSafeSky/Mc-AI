@@ -1,4 +1,5 @@
 const { normalizeEntityName } = require("./entities");
+const { parseJsonFromLlmText } = require("./llm_json");
 
 const ALLOWED_GOAL_TYPES = new Set([
   "craftItem",
@@ -261,7 +262,14 @@ function validateRouteObject(route, options = {}) {
     return { ok: false, reasonCode: "invalid_route_shape", reason: "route must be a JSON object" };
   }
 
-  const kind = String(route.kind || "").trim();
+  const explicitKind = String(route.kind || "").trim();
+  let kind = explicitKind;
+  if (!kind) {
+    if (Array.isArray(route.goals)) kind = "action";
+    else if (typeof route.reply === "string" && route.reply.trim()) kind = "chat";
+    else if (typeof route.reasonCode === "string" && route.reasonCode.trim()) kind = "reject";
+    else kind = "none";
+  }
   if (!ALLOWED_ROUTE_KINDS.has(kind)) {
     return { ok: false, reasonCode: "unknown_route_kind", reason: `unknown route kind: ${kind || "empty"}` };
   }
@@ -323,21 +331,15 @@ function validateRouteObject(route, options = {}) {
 }
 
 function parseRouteText(text, options = {}) {
-  const raw = String(text || "").trim();
-  if (!raw) {
-    return { ok: false, reasonCode: "llm_empty_response", reason: "empty response" };
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    return validateRouteObject(parsed, options);
-  } catch (error) {
+  const parsed = parseJsonFromLlmText(text);
+  if (!parsed.ok) {
     return {
       ok: false,
-      reasonCode: "invalid_json",
-      reason: String(error)
+      reasonCode: parsed.reasonCode || "invalid_json",
+      reason: parsed.reason || "failed to parse route JSON"
     };
   }
+  return validateRouteObject(parsed.value, options);
 }
 
 module.exports = {

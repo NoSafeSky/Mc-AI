@@ -13,6 +13,17 @@ const FUEL_PRIORITY = [
 ];
 
 const FUELS = new Set(FUEL_PRIORITY);
+const FUEL_SMELT_VALUE = Object.freeze({
+  coal: 8,
+  charcoal: 8,
+  coal_block: 80,
+  blaze_rod: 12,
+  dried_kelp_block: 20,
+  lava_bucket: 100,
+  stick: 0.5,
+  planks: 1.5,
+  log: 1.5
+});
 
 function listInventoryItems(bot) {
   if (!bot?.inventory) return [];
@@ -25,13 +36,40 @@ function listInventoryItems(bot) {
   return [];
 }
 
-function findFuelInventoryItem(bot, preferred = []) {
+function findFuelInventoryItem(bot, preferred = [], options = {}) {
   const items = listInventoryItems(bot);
   const order = preferred.length ? preferred : FUEL_PRIORITY;
+  const minSmelts = Math.max(0, Number(options?.minSmelts || 0));
+  const matches = (itemName, prefName) => {
+    const item = normalizeItemName(itemName);
+    const pref = normalizeItemName(prefName);
+    if (!item || !pref) return false;
+    if (pref === "log") return /(_log|_stem|_hyphae)$/.test(item);
+    if (pref === "planks") return /_planks$/.test(item);
+    if (pref.endsWith("_log") || pref.endsWith("_stem") || pref.endsWith("_hyphae")) {
+      return /(_log|_stem|_hyphae)$/.test(item);
+    }
+    if (pref.endsWith("_planks")) return /_planks$/.test(item);
+    return item === pref;
+  };
   for (const name of order) {
-    const target = normalizeItemName(name);
-    const found = items.find((it) => normalizeItemName(it?.name) === target && Number(it?.count || 0) > 0);
-    if (found) return found;
+    const matchingRows = items
+      .filter((it) => matches(it?.name, name) && Number(it?.count || 0) > 0)
+      .sort((a, b) => Number(b?.count || 0) - Number(a?.count || 0));
+    if (!matchingRows.length) continue;
+    if (minSmelts > 0) {
+      const burn = fuelSmeltValue(name || matchingRows[0]?.name);
+      const totalCount = matchingRows.reduce((sum, row) => sum + Number(row?.count || 0), 0);
+      const capacity = burn * totalCount;
+      if (!Number.isFinite(capacity) || capacity < minSmelts) continue;
+    }
+    return matchingRows[0];
+  }
+  if (minSmelts > 0) {
+    for (const name of order) {
+      const found = items.find((it) => matches(it?.name, name) && Number(it?.count || 0) > 0);
+      if (found) return found;
+    }
   }
   return null;
 }
@@ -60,6 +98,24 @@ function fuelPlan(cfg = {}, outputCount = 1) {
   };
 }
 
+function fuelSmeltValue(name) {
+  const key = normalizeItemName(name);
+  if (!key) return 0;
+  if (Object.prototype.hasOwnProperty.call(FUEL_SMELT_VALUE, key)) {
+    return Number(FUEL_SMELT_VALUE[key] || 0);
+  }
+  if (/(_log|_stem|_hyphae)$/.test(key)) return Number(FUEL_SMELT_VALUE.log);
+  if (/_planks$/.test(key)) return Number(FUEL_SMELT_VALUE.planks);
+  return 0;
+}
+
+function requiredFuelItemCount(name, smeltOperations = 1) {
+  const burn = fuelSmeltValue(name);
+  if (!Number.isFinite(burn) || burn <= 0) return Number.POSITIVE_INFINITY;
+  const ops = Math.max(1, Number(smeltOperations || 1));
+  return Math.max(1, Math.ceil(ops / burn));
+}
+
 function isFuelItemName(name) {
   const item = normalizeItemName(name);
   if (FUELS.has(item)) return true;
@@ -71,5 +127,7 @@ function isFuelItemName(name) {
 module.exports = {
   fuelPlan,
   findFuelInventoryItem,
-  isFuelItemName
+  isFuelItemName,
+  fuelSmeltValue,
+  requiredFuelItemCount
 };

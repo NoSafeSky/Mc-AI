@@ -5,7 +5,8 @@ const {
   isCriticalItem,
   inventoryCountByName,
   stashStatus,
-  giveItemToOwner
+  giveItemToOwner,
+  dropAllInventory
 } = require("../brain/team_inventory");
 
 test("isCriticalItem marks progression tools as critical", () => {
@@ -56,4 +57,25 @@ test("giveItemToOwner tosses requested item count", async () => {
   assert.equal(out.ok, true);
   assert.equal(out.given, 5);
   assert.equal(tossed.reduce((a, b) => a + b, 0), 5);
+});
+
+test("dropAllInventory tosses every inventory stack", async () => {
+  const tosses = [];
+  const bot = {
+    inventory: {
+      items: () => [
+        { name: "cobblestone", count: 16, type: 1, metadata: null },
+        { name: "dirt", count: 5, type: 2, metadata: null }
+      ]
+    },
+    toss: async (type, _meta, count) => {
+      tosses.push({ type, count });
+    }
+  };
+
+  const out = await dropAllInventory(bot, () => {});
+  assert.equal(out.ok, true);
+  assert.equal(out.dropped, 21);
+  assert.equal(out.failed, 0);
+  assert.equal(tosses.length, 2);
 });

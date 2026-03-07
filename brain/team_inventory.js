@@ -118,6 +118,54 @@ async function giveItemToOwner(bot, ownerName, itemName, count = 1, log = () => 
   return { ok: true, given };
 }
 
+async function dropAllInventory(bot, log = () => {}) {
+  const rows = inventoryRows(bot);
+  if (!rows.length) {
+    return { ok: false, code: "empty_inventory", reason: "inventory empty", dropped: 0, failed: 0 };
+  }
+
+  let dropped = 0;
+  let failed = 0;
+
+  for (const row of rows) {
+    const count = Number(row?.count || 0);
+    if (!Number.isFinite(count) || count <= 0) continue;
+    try {
+      await bot.toss(row.type, row.metadata || null, count);
+      dropped += count;
+    } catch (e) {
+      failed += count;
+      log({
+        type: "team_inventory_drop_error",
+        item: normalizeItemName(row?.name),
+        count,
+        error: String(e)
+      });
+    }
+  }
+
+  log({
+    type: "team_stash_sync",
+    action: "drop_all_inventory",
+    dropped,
+    failed
+  });
+
+  if (dropped <= 0) {
+    return { ok: false, code: "drop_failed", reason: "failed dropping inventory", dropped, failed };
+  }
+  if (failed > 0) {
+    return {
+      ok: false,
+      code: "partial_drop_failed",
+      reason: `dropped ${dropped}, failed ${failed}`,
+      dropped,
+      failed
+    };
+  }
+  return { ok: true, dropped, failed: 0 };
+}
+
 async function openStashContainer(bot, block) {
   if (!block) return null;
   if (typeof bot.openChest === "function") {
@@ -184,5 +232,6 @@ module.exports = {
   isCriticalItem,
   stashStatus,
   giveItemToOwner,
-  stashNow
+  stashNow,
+  dropAllInventory
 };

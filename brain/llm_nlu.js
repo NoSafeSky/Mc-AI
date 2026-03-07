@@ -1,5 +1,6 @@
 const fetch = require("node-fetch");
 const { buildOllamaGenerateBody, extractOllamaText } = require("./llm_ollama");
+const { parseJsonFromLlmText } = require("./llm_json");
 
 const ALLOWED_TYPES = new Set([
   "follow",
@@ -99,12 +100,9 @@ function validateIntent(obj, owner, version = "1.21.1") {
 }
 
 function parseIntentText(text, owner, version = "1.21.1") {
-  try {
-    const parsed = JSON.parse(String(text || "").trim());
-    return validateIntent(parsed, owner, version);
-  } catch {
-    return noneIntent("invalid_json");
-  }
+  const parsed = parseJsonFromLlmText(text);
+  if (!parsed.ok) return noneIntent(parsed.reasonCode || "invalid_json");
+  return validateIntent(parsed.value, owner, version);
 }
 
 function parseOllamaIntentPayload(data, owner, version = "1.21.1") {
@@ -175,7 +173,9 @@ message="${message}"
 JSON:`;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), cfg.llmTimeoutMs || 3000);
+  const timeout = cfg?.disableTimeouts === true
+    ? null
+    : setTimeout(() => controller.abort(), cfg.llmTimeoutMs || 3000);
 
   try {
     if (provider === "groq") {
@@ -261,7 +261,7 @@ JSON:`;
     const reason = classifyLlmError(provider, e);
     return noneIntent(reason, { unavailable: true, provider, error: String(e) });
   } finally {
-    clearTimeout(timeout);
+    if (timeout) clearTimeout(timeout);
   }
 }
 

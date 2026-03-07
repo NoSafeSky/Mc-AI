@@ -84,3 +84,32 @@ test("buildCapabilitySnapshot detects stations/resources and tool tiers", () => 
   assert.equal(snap.environmentFlags.canCollectBlock, true);
   assert.equal(snap.environmentFlags.hasPathfinder, true);
 });
+
+test("buildCapabilitySnapshot merges cached station inventory counts", () => {
+  const bot = {
+    version: "1.21.1",
+    entity: {
+      position: new Vec3(0, 64, 0)
+    },
+    inventory: {
+      items: () => [
+        { name: "minecraft:stick", count: 2 }
+      ]
+    },
+    __stationInventoryCache: {
+      counts: {
+        oak_planks: 4,
+        stick: 1
+      },
+      sources: []
+    },
+    findBlock: () => null
+  };
+
+  const snap = buildCapabilitySnapshot(bot, {});
+
+  assert.equal(snap.inventory.stick, 3);
+  assert.equal(snap.inventory.oak_planks, 4);
+  assert.equal(snap.inventoryBase.stick, 2);
+  assert.equal(snap.stationInventory.oak_planks, 4);
+});

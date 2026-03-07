@@ -5,6 +5,10 @@ function isCancelled(runCtx) {
   return !!runCtx?.isCancelled?.();
 }
 
+function timeoutsDisabled(cfg = {}) {
+  return cfg?.disableTimeouts === true;
+}
+
 function reportProgress(runCtx, message, extra = {}) {
   try {
     if (typeof runCtx?.reportProgress === "function") {
@@ -60,7 +64,7 @@ async function reposition(bot, cfg, runCtx, log, stepName) {
   const moved = await moveTo(
     bot,
     candidate.standPos,
-    cfg.reasoningMoveTimeoutMs || cfg.reasoningStepTimeoutMs || 12000,
+    timeoutsDisabled(cfg) ? Number.POSITIVE_INFINITY : (cfg.reasoningMoveTimeoutMs || cfg.reasoningStepTimeoutMs || 12000),
     runCtx
   );
   log({
@@ -98,9 +102,12 @@ async function runStepWithCorrection(stepName, fn, ctx = {}, policy = {}) {
   const cfg = ctx.cfg || {};
   const runCtx = ctx.runCtx;
   const log = ctx.log || (() => {});
-  const maxCorrections = Number.isFinite(policy.maxCorrections)
+  const configuredMaxCorrections = Number.isFinite(policy.maxCorrections)
     ? policy.maxCorrections
     : (cfg.reasoningMaxCorrectionsPerStep || 6);
+  const maxCorrections = timeoutsDisabled(cfg)
+    ? Math.min(Math.max(0, configuredMaxCorrections), 2)
+    : configuredMaxCorrections;
 
   for (let attempt = 0; attempt <= maxCorrections; attempt += 1) {
     if (isCancelled(runCtx)) return { ok: false, status: "cancel", code: "cancelled", reason: "cancelled", recoverable: false };
@@ -112,7 +119,7 @@ async function runStepWithCorrection(stepName, fn, ctx = {}, policy = {}) {
     const recoverable = !!result?.recoverable;
     if (!recoverable || attempt >= maxCorrections) {
       log({
-        type: "reasoner_step_giveup",
+        type: "reasoner_step_fail",
         step: stepName,
         attempt,
         recoverable,
@@ -128,7 +135,7 @@ async function runStepWithCorrection(stepName, fn, ctx = {}, policy = {}) {
     });
     if (!recovered) {
       log({
-        type: "reasoner_step_giveup",
+        type: "reasoner_step_fail",
         step: stepName,
         attempt,
         recoverable: true,

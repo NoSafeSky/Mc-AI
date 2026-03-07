@@ -579,6 +579,7 @@ function buildGoalPlan(bot, intent, cfg = {}, snapshot = null, log = () => {}) {
     domain: "craft",
     item,
     count,
+    stationInventoryRefreshedAt: Number(bot?.__stationInventoryCache?.refreshedAt || 0),
     steps: ctx.steps,
     needs: ctx.rootNeeds,
     constraints: {

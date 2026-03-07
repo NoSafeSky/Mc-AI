@@ -86,6 +86,29 @@ test("wooden_sword with oak_planks in inventory avoids log gather", () => {
   assert.equal(plan.steps.some((s) => s.action === "craft_recipe" && s.args?.item === "wooden_sword"), true);
 });
 
+test("wooden_sword with cached station planks avoids log gather", () => {
+  const bot = makeBot([
+    { name: "minecraft:stick", count: 2 }
+  ]);
+  bot.__stationInventoryCache = {
+    counts: {
+      oak_planks: 8
+    },
+    sources: []
+  };
+
+  const plan = buildGoalPlan(bot, { type: "craftItem", item: "wooden_sword", count: 1 }, {
+    dependencyMaxDepth: 10,
+    dependencyMaxNodes: 400,
+    dependencyPlanTimeoutMs: 3000,
+    materialFlexPolicy: "inventory_first_any_wood"
+  });
+
+  assert.equal(plan.ok, true);
+  assert.equal(plan.steps.some((s) => s.action === "gather_block" && s.args?.item === "log"), false);
+  assert.equal(plan.steps.some((s) => s.action === "craft_recipe" && s.args?.item === "wooden_sword"), true);
+});
+
 test("wooden_sword with birch_log plans via log -> planks family", () => {
   const bot = makeBot([{ name: "minecraft:birch_log", count: 1 }]);
   const plan = buildGoalPlan(bot, { type: "craftItem", item: "wooden_sword", count: 1 }, {

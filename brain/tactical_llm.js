@@ -1,5 +1,6 @@
 const fetch = require("node-fetch");
 const { buildOllamaGenerateBody, extractOllamaText } = require("./llm_ollama");
+const { parseJsonFromLlmText } = require("./llm_json");
 
 const callTimes = [];
 
@@ -81,56 +82,108 @@ async function suggestTacticalHint(eventType, payload, cfg = {}, log = () => {})
     eventType
   });
 
-  if (provider !== "ollama") {
-    log({ type: "tactical_llm_hint_reject", reasonCode: "unsupported_provider", provider, eventType });
-    return null;
-  }
-
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = cfg?.disableTimeouts === true ? null : setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const body = buildOllamaGenerateBody({
-      model,
-      system: buildSystemPrompt(),
-      prompt: buildPrompt(eventType, payload),
-      temperature: 0.1,
-      numPredict: 180,
-      disableThinking: cfg.ollamaDisableThinking !== false
-    });
-
-    const res = await fetch("http://127.0.0.1:11434/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
-    if (!res.ok) {
-      log({ type: "tactical_llm_hint_reject", reasonCode: "http_error", status: res.status, eventType });
-      return null;
-    }
-    const data = await res.json();
-    const extracted = extractOllamaText(data);
-    if (!extracted.ok) {
-      log({
-        type: "tactical_llm_hint_reject",
-        reasonCode: extracted.code || "empty_response",
-        hasThinking: !!extracted.hasThinking,
-        eventType
-      });
-      return null;
-    }
     let parsed = null;
-    try {
-      parsed = JSON.parse(String(extracted.text || "").trim());
-    } catch {
-      log({ type: "tactical_llm_hint_reject", reasonCode: "invalid_json", eventType });
+    if (provider === "groq") {
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) {
+        log({ type: "tactical_llm_hint_reject", reasonCode: "missing_api_key", provider, eventType });
+        return null;
+      }
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: buildSystemPrompt() },
+            { role: "user", content: buildPrompt(eventType, payload) }
+          ],
+          temperature: 0.1,
+          max_tokens: 180
+        }),
+        signal: controller.signal
+      });
+      if (!res.ok) {
+        log({ type: "tactical_llm_hint_reject", reasonCode: "http_error", status: res.status, provider, eventType });
+        return null;
+      }
+      const data = await res.json();
+      const text = String(data?.choices?.[0]?.message?.content || "").trim();
+      if (!text) {
+        log({ type: "tactical_llm_hint_reject", reasonCode: "empty_response", provider, eventType });
+        return null;
+      }
+      const parsedJson = parseJsonFromLlmText(text);
+      if (!parsedJson.ok) {
+        log({
+          type: "tactical_llm_hint_reject",
+          reasonCode: parsedJson.reasonCode || "invalid_json",
+          provider,
+          eventType
+        });
+        return null;
+      }
+      parsed = parsedJson.value;
+    } else if (provider === "ollama") {
+      const body = buildOllamaGenerateBody({
+        model,
+        system: buildSystemPrompt(),
+        prompt: buildPrompt(eventType, payload),
+        temperature: 0.1,
+        numPredict: 180,
+        disableThinking: cfg.ollamaDisableThinking !== false
+      });
+
+      const res = await fetch("http://127.0.0.1:11434/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      if (!res.ok) {
+        log({ type: "tactical_llm_hint_reject", reasonCode: "http_error", status: res.status, provider, eventType });
+        return null;
+      }
+      const data = await res.json();
+      const extracted = extractOllamaText(data);
+      if (!extracted.ok) {
+        log({
+          type: "tactical_llm_hint_reject",
+          reasonCode: extracted.code || "empty_response",
+          hasThinking: !!extracted.hasThinking,
+          provider,
+          eventType
+        });
+        return null;
+      }
+      const parsedJson = parseJsonFromLlmText(extracted.text || "");
+      if (!parsedJson.ok) {
+        log({
+          type: "tactical_llm_hint_reject",
+          reasonCode: parsedJson.reasonCode || "invalid_json",
+          provider,
+          eventType
+        });
+        return null;
+      }
+      parsed = parsedJson.value;
+    } else {
+      log({ type: "tactical_llm_hint_reject", reasonCode: "unsupported_provider", provider, eventType });
       return null;
     }
+
     const hint = validateHint(parsed, minConfidence);
     if (!hint || hint.kind === "none") {
       log({
         type: "tactical_llm_hint_reject",
         reasonCode: hint ? "none_hint" : "low_confidence_or_invalid",
+        provider,
         eventType
       });
       return null;
@@ -150,7 +203,7 @@ async function suggestTacticalHint(eventType, payload, cfg = {}, log = () => {})
     });
     return null;
   } finally {
-    clearTimeout(timeout);
+    if (timeout) clearTimeout(timeout);
   }
 }
 

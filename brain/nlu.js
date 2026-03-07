@@ -140,8 +140,20 @@ function parseNLU(text, cfg, bot) {
   ) {
     return { type: "none", source: "rules", confidence: 0, reason: "recipe_question" };
   }
-  if (t.includes("stop all") || t.includes("stop everything") || t.includes("!stopall")) {
+  if (t === "stopall" || t.includes("stop all") || t.includes("stop everything") || t.includes("!stopall")) {
     return { type: "stopall", source: "rules", confidence: 1 };
+  }
+  if (
+    t === "dropall"
+    || /^(drop|toss|throw)\s+all$/.test(t)
+    || /^(drop|toss|throw)\s+(?:my\s+|bot'?s\s+|bot\s+|bots\s+)?(?:items?|inventory|inv|stuff|loot)$/.test(t)
+    || (
+      /\b(drop|toss|throw)\b/.test(t)
+      && /\b(all|everything)\b/.test(t)
+      && /\b(item|items|inventory|inv|stuff|loot)\b/.test(t)
+    )
+  ) {
+    return { type: "dropAllItems", source: "rules", confidence: 1 };
   }
   if (t === "stop" || t.includes("stop moving") || t.includes("stop following")) {
     return { type: "stop", source: "rules", confidence: 1 };

@@ -7,6 +7,7 @@ const { llmPlan, getLastPlanFailure } = require("./llm_plan");
 const { buildCraftPlan } = require("./craft_planner");
 const { executeCraftPlan, executeGoalPlan } = require("./craft_executor");
 const { buildGoalPlan } = require("./dependency_planner");
+const { refreshNearbyStationInventory } = require("./knowledge");
 const { TaskSupervisor } = require("./task_supervisor");
 const { goals, Movements } = require("mineflayer-pathfinder");
 const { runStepWithCorrection, runGoalWithReplan } = require("./goal_reasoner");
@@ -36,12 +37,23 @@ function shouldCancel(runCtx) {
   return !!runCtx?.isCancelled?.();
 }
 
+function timeoutsDisabled(cfg = {}) {
+  return cfg?.disableTimeouts === true;
+}
+
 function reportProgress(runCtx, message, extra = {}) {
   try {
     if (typeof runCtx?.reportProgress === "function") {
       runCtx.reportProgress(message, extra);
     }
   } catch {}
+}
+
+function previewMatchesStationCache(preview, bot) {
+  if (!preview?.ok) return false;
+  const previewStamp = Number(preview.stationInventoryRefreshedAt || 0);
+  const cacheStamp = Number(bot?.__stationInventoryCache?.refreshedAt || 0);
+  return previewStamp === cacheStamp;
 }
 
 function withIntentOverrides(cfg, intent) {
@@ -119,8 +131,9 @@ async function executeAttackMob(bot, mobType, cfg, runCtx, log) {
   const maxDistance = cfg.maxTaskDistance || cfg.attackRange || 32;
   const timeoutMs = (cfg.taskTimeoutSec || cfg.attackTimeoutSec || 60) * 1000;
   const noTargetTimeoutMs = Math.min(timeoutMs, (cfg.noTargetTimeoutSec || 8) * 1000);
-  const deadline = Date.now() + timeoutMs;
-  const noTargetDeadline = Date.now() + noTargetTimeoutMs;
+  const disabled = timeoutsDisabled(cfg);
+  const deadline = disabled ? Number.POSITIVE_INFINITY : (Date.now() + timeoutMs);
+  const noTargetDeadline = disabled ? Number.POSITIVE_INFINITY : (Date.now() + noTargetTimeoutMs);
   const mcData = require("minecraft-data")(bot.version);
   const movements = new Movements(bot, mcData);
   movements.allow1by1towers = true;
@@ -344,7 +357,10 @@ async function executeIntent(bot, intent, getState, setState, log, cfg, runCtx, 
     log({ type: "craft_job_start", item: targetItem, count: targetCount });
 
     if (effectiveCfg.intelligenceEnabled !== false && effectiveCfg.dependencyPlannerEnabled !== false) {
-      const initialPlan = runCtx?.preplannedGoal?.ok
+      try {
+        await refreshNearbyStationInventory(bot, effectiveCfg, log);
+      } catch {}
+      const initialPlan = (runCtx?.preplannedGoal?.ok && previewMatchesStationCache(runCtx.preplannedGoal, bot))
         ? runCtx.preplannedGoal
         : buildGoalPlan(bot, intent, effectiveCfg, null, log);
       if (runCtx?.supervisor && initialPlan?.goalId) runCtx.supervisor.setGoalId(initialPlan.goalId);
@@ -376,7 +392,12 @@ async function executeIntent(bot, intent, getState, setState, log, cfg, runCtx, 
             meta: result.meta || null
           };
         },
-        rebuildGoal: async () => buildGoalPlan(bot, intent, effectiveCfg, null, log),
+        rebuildGoal: async () => {
+          try {
+            await refreshNearbyStationInventory(bot, effectiveCfg, log);
+          } catch {}
+          return buildGoalPlan(bot, intent, effectiveCfg, null, log);
+        },
         cfg: effectiveCfg,
         runCtx,
         log

@@ -1,5 +1,6 @@
 const fetch = require("node-fetch");
 const { buildOllamaGenerateBody, extractOllamaText } = require("./llm_ollama");
+const { stripThinkTags } = require("./llm_json");
 
 let lastChatFailure = null;
 
@@ -34,8 +35,17 @@ function parseOllamaChatPayload(data, provider = "ollama") {
     });
     return null;
   }
+  const cleaned = stripThinkTags(extracted.text);
+  if (!cleaned) {
+    setLastChatFailure({
+      reason: "llm_thinking_only_response",
+      provider,
+      hasThinking: true
+    });
+    return null;
+  }
   setLastChatFailure(null);
-  return extracted.text;
+  return cleaned;
 }
 
 async function llmChatReply(message, cfg, history = [], opts = {}) {
@@ -52,7 +62,7 @@ async function llmChatReply(message, cfg, history = [], opts = {}) {
 
   const controller = new AbortController();
   const timeoutMs = Number.isFinite(opts.timeoutMs) ? opts.timeoutMs : (cfg.llmTimeoutMs || 3000);
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = cfg?.disableTimeouts === true ? null : setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     if (provider === "groq") {
@@ -87,7 +97,7 @@ async function llmChatReply(message, cfg, history = [], opts = {}) {
         return null;
       }
       const data = await res.json();
-      const text = data?.choices?.[0]?.message?.content?.trim() || null;
+      const text = stripThinkTags(data?.choices?.[0]?.message?.content || "");
       if (!text) {
         console.log("Groq chat empty response");
         setLastChatFailure({ reason: "llm_empty_response", provider });
@@ -120,7 +130,7 @@ async function llmChatReply(message, cfg, history = [], opts = {}) {
         return null;
       }
       const data = await res.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+      const text = stripThinkTags(data?.candidates?.[0]?.content?.parts?.[0]?.text || "");
       if (!text) {
         setLastChatFailure({ reason: "llm_empty_response", provider });
         return null;
@@ -161,7 +171,7 @@ async function llmChatReply(message, cfg, history = [], opts = {}) {
     });
     return null;
   } finally {
-    clearTimeout(timeout);
+    if (timeout) clearTimeout(timeout);
   }
 }
 

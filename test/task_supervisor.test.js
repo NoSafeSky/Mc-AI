@@ -44,6 +44,7 @@ test("no-progress triggers task_stall_fail and cancellation", async () => {
   assert.equal(goalCleared, true);
   assert.equal(controlsCleared, true);
   assert.equal(events.some((e) => e.type === "task_stall_fail"), true);
+  assert.equal(events.some((e) => e.type === "task_stall_fail" && Number(e.inactivityMs || 0) > 0), true);
 });
 
 test("regular progress updates prevent stall timeout", async () => {
@@ -86,3 +87,49 @@ test("finish is idempotent and keeps first terminal status", () => {
   assert.equal(state.status, "success");
 });
 
+test("progressKind heartbeat updates heartbeat timestamp without state timestamp", async () => {
+  const supervisor = new TaskSupervisor({
+    bot: {},
+    runCtx: { id: 104, cancelled: false },
+    cfg: {
+      taskNoProgressTimeoutSec: 1,
+      taskProgressHeartbeatSec: 0.01
+    },
+    log: () => {},
+    intentType: "craftItem"
+  });
+
+  const before = supervisor.getState();
+  await sleep(10);
+  supervisor.reportProgress("waiting furnace", { progressKind: "heartbeat" });
+  const after = supervisor.getState();
+  supervisor.finish("success");
+
+  assert.equal(after.lastHeartbeatAt > before.lastHeartbeatAt, true);
+  assert.equal(after.lastStateProgressAt, before.lastStateProgressAt);
+  assert.equal(after.lastProgressKind, "heartbeat");
+});
+
+test("progressKind state updates both state and heartbeat timestamps", async () => {
+  const supervisor = new TaskSupervisor({
+    bot: {},
+    runCtx: { id: 105, cancelled: false },
+    cfg: {
+      taskNoProgressTimeoutSec: 1,
+      taskProgressHeartbeatSec: 0.01
+    },
+    log: () => {},
+    intentType: "craftItem"
+  });
+
+  supervisor.reportProgress("waiting furnace", { progressKind: "heartbeat" });
+  const afterHeartbeat = supervisor.getState();
+  await sleep(10);
+  supervisor.reportProgress("loaded fuel", { progressKind: "state" });
+  const afterState = supervisor.getState();
+  supervisor.finish("success");
+
+  assert.equal(afterState.lastStateProgressAt > afterHeartbeat.lastStateProgressAt, true);
+  assert.equal(afterState.lastHeartbeatAt >= afterState.lastStateProgressAt, true);
+  assert.equal(afterState.lastProgressKind, "state");
+});

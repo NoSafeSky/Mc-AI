@@ -54,3 +54,10 @@ test("autoGatherEnabled false disables gather/harvest/kill providers", () => {
   }));
   assert.equal(options.some((o) => o.provider === "kill_mob_drop"), false);
 });
+
+test("cobblestone gather prefers stone source blocks first", () => {
+  const options = getAcquisitionOptions("cobblestone", 1, makeCtx());
+  const gather = options.find((o) => o.provider === "gather_block");
+  assert.ok(gather);
+  assert.equal(gather.preferredBlocks[0], "stone");
+});

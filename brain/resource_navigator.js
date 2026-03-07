@@ -5,6 +5,10 @@ function isCancelled(runCtx) {
   return !!runCtx?.isCancelled?.();
 }
 
+function timeoutsDisabled(cfg = {}) {
+  return cfg?.disableTimeouts === true;
+}
+
 function parseRings(cfg = {}) {
   const rings = Array.isArray(cfg.missingResourceAutoRings) && cfg.missingResourceAutoRings.length
     ? cfg.missingResourceAutoRings
@@ -79,10 +83,10 @@ function chooseRelocationTarget(bot, item, ring, seed) {
   return chooseFallbackOffset(bot.entity.position.floored(), ring, seed);
 }
 
-async function moveNear(bot, targetPos, timeoutMs, runCtx) {
+async function moveNear(bot, targetPos, timeoutMs, runCtx, cfg = {}) {
   bot.pathfinder.setGoal(new goals.GoalNear(targetPos.x, targetPos.y, targetPos.z, 2));
   const started = Date.now();
-  while (Date.now() - started < timeoutMs) {
+  while (timeoutsDisabled(cfg) || (Date.now() - started < timeoutMs)) {
     if (isCancelled(runCtx)) return false;
     if (bot.entity.position.distanceTo(targetPos) <= 3) return true;
     await bot.waitForTicks(10);
@@ -137,7 +141,7 @@ async function autoRelocateForResource(bot, itemName, cfg = {}, runCtx = null, l
     };
   }
 
-  const moved = await moveNear(bot, targetPos, timeoutMs, runCtx);
+  const moved = await moveNear(bot, targetPos, timeoutMs, runCtx, cfg);
   if (!moved) {
     log({
       type: "relocate_fail",

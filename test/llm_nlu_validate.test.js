@@ -36,3 +36,12 @@ test("valid craftItem is accepted", () => {
   assert.equal(intent.item, "wooden_sword");
   assert.equal(intent.count, 1);
 });
+
+test("intent parser tolerates think wrappers and prose", () => {
+  const intent = parseIntentText(
+    '<think>\nclassifying\n</think>\nResult: {"type":"attackMob","mobType":"pig","confidence":0.91}',
+    owner
+  );
+  assert.equal(intent.type, "attackMob");
+  assert.equal(intent.mobType, "pig");
+});

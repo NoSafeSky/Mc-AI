@@ -4,12 +4,18 @@ function clampPositive(value, fallback) {
   return n;
 }
 
+function normalizeProgressKind(value) {
+  const kind = String(value || "").toLowerCase().trim();
+  return kind === "heartbeat" ? "heartbeat" : "state";
+}
+
 class TaskSupervisor {
   constructor(options = {}) {
     this.bot = options.bot;
     this.runCtx = options.runCtx || null;
     this.log = typeof options.log === "function" ? options.log : () => {};
     this.cfg = options.cfg || {};
+    this.timeoutsDisabled = this.cfg.disableTimeouts === true;
     this.noProgressMs = clampPositive(this.cfg.taskNoProgressTimeoutSec, 15) * 1000;
     this.heartbeatMs = clampPositive(this.cfg.taskProgressHeartbeatSec, 3) * 1000;
     this._lastHeartbeatAt = 0;
@@ -26,6 +32,9 @@ class TaskSupervisor {
       currentStepId: null,
       currentStepAction: null,
       lastProgressAt: now,
+      lastStateProgressAt: now,
+      lastHeartbeatAt: now,
+      lastProgressKind: "state",
       lastProgressMsg: "task started",
       attempt: 0,
       gatherRingIndex: null,
@@ -37,6 +46,7 @@ class TaskSupervisor {
   }
 
   _startTicker() {
+    if (this.timeoutsDisabled) return;
     if (this._timer) return;
     const tickMs = Math.max(
       25,
@@ -49,10 +59,11 @@ class TaskSupervisor {
     if (typeof this._timer.unref === "function") this._timer.unref();
   }
 
-  _emitProgressHeartbeat(message = null) {
+  _emitProgressHeartbeat(message = null, progressKind = "heartbeat") {
     const now = Date.now();
     if (now - this._lastHeartbeatAt < this.heartbeatMs) return;
     this._lastHeartbeatAt = now;
+    this.state.lastHeartbeatAt = now;
     this.log({
       type: "task_progress",
       taskId: this.state.id,
@@ -63,19 +74,22 @@ class TaskSupervisor {
       attempt: this.state.attempt,
       gatherRingIndex: this.state.gatherRingIndex,
       elapsedMs: now - this.state.startedAt,
+      progressKind: normalizeProgressKind(progressKind),
       msg: message || this.state.lastProgressMsg || "running"
     });
   }
 
   _tick() {
+    if (this.timeoutsDisabled) return;
     if (this._ended || this._stalled) return;
     const now = Date.now();
-    this._emitProgressHeartbeat();
-    if (now - this.state.lastProgressAt < this.noProgressMs) return;
+    this._emitProgressHeartbeat(null, "heartbeat");
+    if (now - this.state.lastStateProgressAt < this.noProgressMs) return;
 
     this._stalled = true;
     this.state.status = "fail";
     const step = this.state.currentStepAction || this.state.intentType || "task";
+    const inactivityMs = now - this.state.lastStateProgressAt;
     const reason = `stalled at ${step}`;
     const nextNeed = "move to open area";
     this.lastFailure = {
@@ -109,7 +123,8 @@ class TaskSupervisor {
       stepAction: this.state.currentStepAction,
       reason,
       nextNeed,
-      elapsedMs: now - this.state.startedAt
+      elapsedMs: now - this.state.startedAt,
+      inactivityMs
     });
   }
 
@@ -124,19 +139,28 @@ class TaskSupervisor {
     if (stepAction != null) this.state.currentStepAction = stepAction;
     if (Number.isFinite(extra.attempt)) this.state.attempt = extra.attempt;
     if (Number.isFinite(extra.gatherRingIndex)) this.state.gatherRingIndex = extra.gatherRingIndex;
-    this.reportProgress(extra.msg || `step ${stepAction || "running"}`, extra);
+    this.reportProgress(extra.msg || `step ${stepAction || "running"}`, {
+      ...extra,
+      progressKind: extra.progressKind || "state"
+    });
   }
 
   reportProgress(message, extra = {}) {
     if (this._ended) return;
     const now = Date.now();
+    const progressKind = normalizeProgressKind(extra.progressKind);
     if (Number.isFinite(extra.attempt)) this.state.attempt = extra.attempt;
     if (Number.isFinite(extra.gatherRingIndex)) this.state.gatherRingIndex = extra.gatherRingIndex;
     if (extra.stepId != null) this.state.currentStepId = extra.stepId;
     if (extra.stepAction != null) this.state.currentStepAction = extra.stepAction;
-    this.state.lastProgressAt = now;
+    if (progressKind === "state") {
+      this.state.lastProgressAt = now;
+      this.state.lastStateProgressAt = now;
+    }
+    this.state.lastHeartbeatAt = now;
+    this.state.lastProgressKind = progressKind;
     this.state.lastProgressMsg = message || this.state.lastProgressMsg || "running";
-    this._emitProgressHeartbeat(message);
+    this._emitProgressHeartbeat(message, progressKind);
   }
 
   finish(status, failure = null) {
