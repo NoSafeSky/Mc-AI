@@ -24,6 +24,13 @@ test("parse kill piggy alias", () => {
   assert.equal(intent.mobType, "pig");
 });
 
+test("parse kill two pigs captures attack count", () => {
+  const intent = parseNLU("kill two pigs", cfg, null);
+  assert.equal(intent.type, "attackMob");
+  assert.equal(intent.mobType, "pig");
+  assert.equal(intent.count, 2);
+});
+
 test("parse follow me", () => {
   const intent = parseNLU("follow me", cfg, null);
   assert.equal(intent.type, "follow");

@@ -119,6 +119,7 @@ function validateGoalSpec(goal, options = {}) {
 
   if (type === "attackMob") {
     const mobType = normalizeEntityName(args.mobType || goal.mobType);
+    const count = clamp(args.count ?? goal.count, 1, 64, 1);
     if (!mobType) {
       return { ok: false, reasonCode: "missing_mob", reason: "attackMob requires args.mobType" };
     }
@@ -126,7 +127,7 @@ function validateGoalSpec(goal, options = {}) {
       ok: true,
       value: {
         type,
-        args: { mobType },
+        args: { mobType, count },
         confidence,
         ...(priority !== undefined ? { priority } : {})
       }

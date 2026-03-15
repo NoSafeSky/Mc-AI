@@ -54,3 +54,55 @@ test("nearbyLivingDiagnostics lists only living entities in range", () => {
   assert.equal(diag.some((x) => x.startsWith("arrow:projectile@")), false);
   assert.equal(diag.some((x) => x.startsWith("cow:animal@")), false);
 });
+
+test("executeAttackMob respects requested kill count", async () => {
+  const mcData = require("minecraft-data")("1.21.1");
+  let attacks = 0;
+  const entities = {
+    1: makeEntity(1, "animal", "pig", 1, 0, 0),
+    2: makeEntity(2, "animal", "pig", 2, 0, 0),
+    3: makeEntity(3, "animal", "pig", 3, 0, 0)
+  };
+  entities[1].isValid = true;
+  entities[2].isValid = true;
+  entities[3].isValid = true;
+
+  const bot = {
+    version: "1.21.1",
+    registry: mcData,
+    entity: { position: new Vec3(0, 0, 0), yaw: 0, pitch: 0 },
+    entities,
+    inventory: { items: () => [] },
+    pathfinder: {
+      setGoal() {},
+      setMovements() {}
+    },
+    attack(target) {
+      attacks += 1;
+      const id = Number(target?.id);
+      if (Number.isFinite(id) && this.entities[id]) {
+        this.entities[id].isValid = false;
+        delete this.entities[id];
+      }
+    },
+    waitForTicks: async () => {}
+  };
+
+  const out = await __test.executeAttackMob(
+    bot,
+    "pig",
+    {
+      maxTaskDistance: 32,
+      taskTimeoutSec: 20,
+      noTargetTimeoutSec: 1,
+      combatUsePvpPlugin: false
+    },
+    { isCancelled: () => false },
+    () => {},
+    2
+  );
+
+  assert.equal(out.status, "success");
+  assert.equal(attacks, 2);
+  assert.equal(Object.keys(bot.entities).length, 1);
+});

@@ -127,13 +127,30 @@ async function moveNear(bot, pos, radius, timeoutMs, runCtx, cfg = {}, log = () 
   return moveNearHuman(bot, pos, radius, timeoutMs, runCtx, cfg, log, "planner_move");
 }
 
-async function executeAttackMob(bot, mobType, cfg, runCtx, log) {
+function clampCount(value, fallback = 1) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.max(1, Math.min(64, Math.floor(n)));
+}
+
+function targetEntityAlive(bot, target) {
+  if (!target) return false;
+  if (target.isValid === false) return false;
+  const id = Number(target.id);
+  if (!Number.isFinite(id)) return true;
+  const live = bot?.entities?.[id];
+  if (!live) return false;
+  return live.isValid !== false;
+}
+
+async function executeAttackMob(bot, mobType, cfg, runCtx, log, requestedCount = 1) {
   const maxDistance = cfg.maxTaskDistance || cfg.attackRange || 32;
   const timeoutMs = (cfg.taskTimeoutSec || cfg.attackTimeoutSec || 60) * 1000;
   const noTargetTimeoutMs = Math.min(timeoutMs, (cfg.noTargetTimeoutSec || 8) * 1000);
+  const targetCount = clampCount(requestedCount, 1);
   const disabled = timeoutsDisabled(cfg);
   const deadline = disabled ? Number.POSITIVE_INFINITY : (Date.now() + timeoutMs);
-  const noTargetDeadline = disabled ? Number.POSITIVE_INFINITY : (Date.now() + noTargetTimeoutMs);
+  let noTargetDeadline = disabled ? Number.POSITIVE_INFINITY : (Date.now() + noTargetTimeoutMs);
   const mcData = require("minecraft-data")(bot.version);
   const movements = new Movements(bot, mcData);
   movements.allow1by1towers = true;
@@ -143,6 +160,8 @@ async function executeAttackMob(bot, mobType, cfg, runCtx, log) {
   applyMovementProfile(bot, cfg, log);
 
   let sawAnyTarget = false;
+  let killCount = 0;
+  let activeTargetId = null;
   while (Date.now() < deadline) {
     if (shouldCancel(runCtx)) {
       bot.pathfinder.setGoal(null);
@@ -150,7 +169,24 @@ async function executeAttackMob(bot, mobType, cfg, runCtx, log) {
       return { status: "cancel" };
     }
 
-    const target = findNearestTargetByName(bot, mobType, maxDistance);
+    let target = null;
+    if (Number.isFinite(activeTargetId) && bot.entities?.[activeTargetId]) {
+      const sticky = bot.entities[activeTargetId];
+      const stickyName = getCanonicalEntityName(sticky);
+      const stickyDist = bot.entity.position.distanceTo(sticky.position);
+      if (
+        sticky &&
+        sticky.isValid !== false &&
+        matchesTargetNameStrict(stickyName, mobType, TARGET_NAME_ALIASES) &&
+        stickyDist <= (maxDistance + 8)
+      ) {
+        target = sticky;
+      }
+    }
+    if (!target) {
+      target = findNearestTargetByName(bot, mobType, maxDistance);
+      activeTargetId = Number.isFinite(Number(target?.id)) ? Number(target.id) : null;
+    }
 
     if (!target) {
       if (Date.now() > noTargetDeadline) {
@@ -158,12 +194,15 @@ async function executeAttackMob(bot, mobType, cfg, runCtx, log) {
         log({ type: "target_scan", target: mobType, maxDistance, nearby });
         bot.pathfinder.setGoal(null);
         try { bot.pvp?.stop?.(); } catch {}
+        if (killCount > 0 && killCount >= targetCount) {
+          return { status: "success" };
+        }
         return {
           status: "fail",
           code: "resource_not_loaded",
-          reason: `no ${mobType} nearby (within ${maxDistance})`,
+          reason: `no ${mobType} nearby (within ${maxDistance})${targetCount > 1 ? ` after ${killCount}/${targetCount}` : ""}`,
           recoverable: true,
-          nextNeed: `find ${mobType}`
+          nextNeed: targetCount > 1 ? `find ${mobType} (${killCount}/${targetCount})` : `find ${mobType}`
         };
       }
       const ok = await waitTicksCancelable(bot, 10, runCtx);
@@ -175,7 +214,9 @@ async function executeAttackMob(bot, mobType, cfg, runCtx, log) {
       continue;
     }
 
+    noTargetDeadline = disabled ? Number.POSITIVE_INFINITY : (Date.now() + noTargetTimeoutMs);
     sawAnyTarget = true;
+    const targetId = Number.isFinite(Number(target.id)) ? Number(target.id) : null;
     const turn = await executeCombatTurn(bot, target, cfg, runCtx, log);
     if (turn?.status === "cancel") {
       bot.pathfinder.setGoal(null);
@@ -202,11 +243,38 @@ async function executeAttackMob(bot, mobType, cfg, runCtx, log) {
       }
       continue;
     }
-    log({ type: "attack_hit", mobType, target: getCanonicalEntityName(target) || target.displayName || target.name });
+
+    const targetAlive = targetEntityAlive(bot, target);
+    if (!targetAlive) {
+      killCount += 1;
+      activeTargetId = null;
+      log({
+        type: "attack_kill",
+        mobType,
+        killed: killCount,
+        targetCount
+      });
+      if (killCount >= targetCount) {
+        bot.pathfinder.setGoal(null);
+        try { bot.pvp?.stop?.(); } catch {}
+        return { status: "success" };
+      }
+      continue;
+    }
+
+    activeTargetId = targetId;
+    log({
+      type: "attack_hit",
+      mobType,
+      target: getCanonicalEntityName(target) || target.displayName || target.name,
+      killed: killCount,
+      targetCount
+    });
     if (!target.isValid) {
       bot.pathfinder.setGoal(null);
       try { bot.pvp?.stop?.(); } catch {}
-      return { status: "success" };
+      killCount += 1;
+      if (killCount >= targetCount) return { status: "success" };
     }
   }
 
@@ -217,7 +285,13 @@ async function executeAttackMob(bot, mobType, cfg, runCtx, log) {
     log({ type: "target_scan", target: mobType, maxDistance, nearby });
     return { status: "fail", reason: `no ${mobType} nearby (within ${maxDistance})` };
   }
-  return { status: "timeout", code: "path_blocked", reason: "path blocked", recoverable: true };
+  if (killCount >= targetCount) return { status: "success" };
+  return {
+    status: "timeout",
+    code: "path_blocked",
+    reason: `path blocked (${killCount}/${targetCount})`,
+    recoverable: true
+  };
 }
 
 function toReasonerResult(result, fallbackCode = "step_failed") {
@@ -501,7 +575,7 @@ async function executeIntent(bot, intent, getState, setState, log, cfg, runCtx, 
     if (typeof progress === "function") progress(`attack ${intent.mobType || "mob"}`, { stepAction: "attackMob" });
     const reasoned = await runStepWithCorrection(
       "attackMob",
-      async () => toReasonerResult(await executeAttackMob(bot, intent.mobType || "pig", cfg, runCtx, log), "target_unreachable"),
+      async () => toReasonerResult(await executeAttackMob(bot, intent.mobType || "pig", cfg, runCtx, log, intent.count || 1), "target_unreachable"),
       { bot, cfg, runCtx, log }
     );
     if (reasoned.ok) return { status: "success" };
@@ -584,7 +658,7 @@ async function executeIntent(bot, intent, getState, setState, log, cfg, runCtx, 
       else if (step.action === "craftBasic") mappedIntent = { type: "craftBasic" };
       else if (step.action === "explore" || step.action === "seekVillage") {
         mappedIntent = { type: "explore", radius: step.radius, seconds: step.seconds };
-      } else if (step.action === "attackMob") mappedIntent = { type: "attackMob", mobType: step.mobType || "pig" };
+      } else if (step.action === "attackMob") mappedIntent = { type: "attackMob", mobType: step.mobType || "pig", count: clampCount(step.count, 1) };
       else if (step.action === "attackHostile") mappedIntent = { type: "attackHostile" };
       else if (step.action === "huntFood") mappedIntent = { type: "huntFood" };
       else if (step.action === "wait") {
@@ -782,6 +856,8 @@ module.exports = {
     chooseNearestLivingEntity,
     findNearestTargetByName,
     nearbyLivingDiagnostics,
-    TARGET_NAME_ALIASES
+    TARGET_NAME_ALIASES,
+    executeAttackMob,
+    clampCount
   }
 };

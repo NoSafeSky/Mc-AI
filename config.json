@@ -1,6 +1,5 @@
 {
-  "host": "127.0.0.1",
-  "port": 54765,
+  "host": "NoSafeSky.aternos.me",
   "version": "1.21.1",
   "username": "12__12",
   "owner": "NoSafeSky",
@@ -118,13 +117,17 @@
   "tacticalLlmEventOnly": true,
   "movementProfile": "human_cautious",
   "movementLookSmoothingDegPerTick": 12,
-  "movementMicroPauseChance": 0.1,
+  "movementDisableMicroPause": true,
+  "movementMicroPauseChance": 0,
   "movementMicroPauseMsMin": 90,
   "movementMicroPauseMsMax": 260,
   "movementStrafeJitterChance": 0.12,
   "movementSprintDiscipline": true,
   "movementAllowAdvancedParkour": false,
   "combatUsePvpPlugin": true,
+  "combatNoProgressTimeoutMs": 2500,
+  "combatApproachTimeoutMs": 4000,
+  "combatPvpBurstTicks": 4,
   "combatRetreatHealth": 8,
   "combatRetreatFood": 8,
   "teamStashEnabled": true,
@@ -146,6 +149,46 @@
   "logEntityPackets": false,
   "epsilon": 0.12,
   "goalAutonomy": false,
+  "cognitiveEnabled": false,
+  "cognitive": {
+    "enabled": false,
+    "ticks": {
+      "fastMs": 2000,
+      "mediumMs": 10000,
+      "slowMs": 60000
+    },
+    "initiative": {
+      "enabled": true,
+      "cooldownMs": 90000,
+      "maxCommentsPer10Min": 5
+    },
+    "mood": {
+      "enabled": true,
+      "decayToContentMs": 300000
+    },
+    "memory": {
+      "episodicMax": 2000,
+      "semanticMax": 500,
+      "proceduralMax": 200,
+      "emotionalMax": 500
+    },
+    "llmBudget": {
+      "monologueEnabled": false,
+      "monologueMaxPer5Min": 3,
+      "recallEnabled": false,
+      "recallMaxPerMin": 1,
+      "timeoutMs": 2000
+    },
+    "trust": {
+      "enabled": true,
+      "start": 0.1,
+      "successDelta": 0.02,
+      "failDelta": -0.05
+    },
+    "autonomyPolicy": {
+      "advisoryOnly": true
+    }
+  },
   "attackRange": 32,
   "attackTimeoutSec": 60,
   "viewDistance": 10

@@ -35,6 +35,23 @@ const MOB_ALIASES = new Map([
   ["monsters", "hostile"]
 ]);
 
+const COUNT_WORDS = new Map([
+  ["a", 1],
+  ["an", 1],
+  ["one", 1],
+  ["two", 2],
+  ["three", 3],
+  ["four", 4],
+  ["five", 5],
+  ["six", 6],
+  ["seven", 7],
+  ["eight", 8],
+  ["nine", 9],
+  ["ten", 10],
+  ["eleven", 11],
+  ["twelve", 12]
+]);
+
 function normalizeText(text) {
   return String(text || "")
     .toLowerCase()
@@ -76,6 +93,15 @@ function canonicalizeMob(rawMob, bot) {
   return null;
 }
 
+function parseCountToken(raw, fallback = 1) {
+  const token = String(raw || "").toLowerCase().trim();
+  if (!token) return fallback;
+  const numeric = Number.parseInt(token, 10);
+  if (Number.isFinite(numeric) && numeric > 0) return Math.max(1, Math.min(64, numeric));
+  if (COUNT_WORDS.has(token)) return Math.max(1, Math.min(64, COUNT_WORDS.get(token)));
+  return fallback;
+}
+
 function parseCombatIntent(t, bot) {
   const attackVerb = /\b(kill|attack|hunt|slay)\b/.exec(t);
   if (!attackVerb) return null;
@@ -95,13 +121,14 @@ function parseCombatIntent(t, bot) {
     return { type: "huntFood", source: "rules", confidence: 0.88 };
   }
 
-  const mobMatch = /^(?:a|an|the)?\s*([a-z_]+(?:\s+[a-z_]+)?)\b/.exec(afterVerb);
+  const mobMatch = /^(?:(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+)?(?:a|an|the)?\s*([a-z_]+(?:\s+[a-z_]+)?)\b/.exec(afterVerb);
   if (!mobMatch) return { type: "none", source: "rules", confidence: 0, reason: "ambiguous_target" };
 
-  const mobType = canonicalizeMob(mobMatch[1], bot);
+  const count = parseCountToken(mobMatch[1], 1);
+  const mobType = canonicalizeMob(mobMatch[2], bot);
   if (!mobType) return { type: "none", source: "rules", confidence: 0, reason: "unknown_target" };
 
-  return { type: "attackMob", mobType, source: "rules", confidence: 0.96 };
+  return { type: "attackMob", mobType, count, source: "rules", confidence: 0.96 };
 }
 
 function parseGiveRequest(t, defaultCount = 1, version = "1.21.1") {
@@ -235,4 +262,4 @@ function parseNLU(text, cfg, bot) {
   return { type: "none", source: "rules", confidence: 0 };
 }
 
-module.exports = { parseNLU, canonicalizeMob, normalizeText };
+module.exports = { parseNLU, canonicalizeMob, normalizeText, __test: { parseCountToken } };

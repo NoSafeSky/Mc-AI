@@ -672,10 +672,10 @@ async function gatherLogs(bot, needed, cfg, runCtx, log) {
 }
 
 async function ensurePickaxeEquipped(bot) {
-  const order = ["wooden_pickaxe", "stone_pickaxe", "iron_pickaxe", "diamond_pickaxe", "netherite_pickaxe"];
-  const pick = order
-    .map((name) => findInventoryItem(bot, name))
-    .find(Boolean);
+  const pick = pickBestInventoryTool(bot, {
+    toolType: "pickaxe",
+    minTier: "wooden"
+  });
   if (!pick) return false;
   try {
     await bot.equip(pick, "hand");

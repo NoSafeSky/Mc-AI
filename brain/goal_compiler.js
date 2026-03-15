@@ -91,9 +91,10 @@ function compileOneGoal(goal, bot, cfg, options = {}) {
 
   if (type === "attackMob") {
     const rawMob = normalizeEntityName(args.mobType || goal.mobType);
+    const count = clamp(args.count ?? goal.count, 1, 64, 1);
     const mobType = canonicalizeMob(rawMob, bot);
     if (!mobType) return fail("unknown_target", `unknown mob target: ${rawMob || "empty"}`);
-    return { ok: true, intent: { type: "attackMob", mobType, source, confidence } };
+    return { ok: true, intent: { type: "attackMob", mobType, count, source, confidence } };
   }
 
   if (type === "explore") {

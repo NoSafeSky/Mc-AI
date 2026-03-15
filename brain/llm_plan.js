@@ -95,7 +95,7 @@ function buildUserPrompt(message, cfg, context = {}) {
     `message="${String(message || "").replace(/"/g, "\\\"")}"`,
     "Examples:",
     '{"kind":"action","confidence":0.92,"goals":[{"type":"craftItem","args":{"item":"wooden_sword","count":1}}]}',
-    '{"kind":"action","confidence":0.9,"goals":[{"type":"attackMob","args":{"mobType":"pig"}}]}',
+    '{"kind":"action","confidence":0.9,"goals":[{"type":"attackMob","args":{"mobType":"pig","count":1}}]}',
     '{"kind":"action","confidence":0.9,"goals":[{"type":"missionStart","args":{}}]}',
     '{"kind":"action","confidence":0.87,"goals":[{"type":"missionStatus","args":{}}]}',
     '{"kind":"action","confidence":0.86,"goals":[{"type":"missionSuggest","args":{}}]}',
@@ -230,7 +230,7 @@ function goalToLegacyStep(goal, cfg) {
   if (type === "harvest") return { action: "harvestWood" };
   if (type === "craftBasic") return { action: "craftBasic" };
   if (type === "craftItem") return { action: "craftBasic" };
-  if (type === "attackMob") return { action: "attackMob", mobType: args.mobType || "pig" };
+  if (type === "attackMob") return { action: "attackMob", mobType: args.mobType || "pig", count: clamp(args.count, 1, 64, 1) };
   if (type === "attackHostile") return { action: "attackHostile" };
   if (type === "huntFood") return { action: "huntFood" };
   if (type === "explore") {

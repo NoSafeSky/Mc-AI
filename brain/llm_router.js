@@ -29,6 +29,9 @@ async function routePromptWithLLM(text, cfg, state, context = {}) {
   const isOwner = !!context.isOwner;
   const owner = context.owner || cfg.owner;
   const history = Array.isArray(context.history) ? context.history : [];
+  const personalityModifier = typeof context.personalityModifier === "string"
+    ? context.personalityModifier
+    : "";
   const planFn = context.planFn || llmPlanRoute;
   const chatFn = context.chatFn || llmChatReply;
 
@@ -46,7 +49,8 @@ async function routePromptWithLLM(text, cfg, state, context = {}) {
 
     const reply = await chatFn(message, cfg, history, {
       timeoutMs: cfg.chatReplyTimeoutMs || cfg.llmTimeoutMs || 3000,
-      maxTokens: cfg.chatMaxTokens || 80
+      maxTokens: cfg.chatMaxTokens || 80,
+      personalityModifier
     });
 
     if (reply && reply.trim()) {

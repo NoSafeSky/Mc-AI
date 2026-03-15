@@ -115,13 +115,20 @@ function randomChance(p) {
   return Math.random() < n;
 }
 
+function microPauseEnabled(cfg = {}) {
+  if (cfg?.movementDisableMicroPause === true) return false;
+  const chance = Number(cfg?.movementMicroPauseChance ?? 0);
+  return Number.isFinite(chance) && chance > 0;
+}
+
 function msToTicks(ms) {
   return Math.max(1, Math.round(Number(ms || 0) / 50));
 }
 
 async function maybeMicroPause(bot, cfg = {}, runCtx = null, log = () => {}) {
   if (!humanLikeEnabled(cfg)) return true;
-  if (!randomChance(cfg.movementMicroPauseChance ?? 0.1)) return true;
+  if (!microPauseEnabled(cfg)) return true;
+  if (!randomChance(cfg.movementMicroPauseChance ?? 0)) return true;
   const minMs = clamp(cfg.movementMicroPauseMsMin, 10, 2000, 90);
   const maxMs = clamp(cfg.movementMicroPauseMsMax, minMs, 3000, 260);
   const duration = Math.floor(minMs + Math.random() * (maxMs - minMs + 1));

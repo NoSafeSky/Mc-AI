@@ -7,7 +7,7 @@ test("goal compiler maps valid goals to intents", () => {
   const compiled = compileGoalSpecsToIntents(
     [
       { type: "craftItem", args: { item: "wooden_sword", count: 1 }, confidence: 0.9 },
-      { type: "attackMob", args: { mobType: "pig" }, confidence: 0.9 }
+      { type: "attackMob", args: { mobType: "pig", count: 2 }, confidence: 0.9 }
     ],
     { version: "1.21.1", entities: {} },
     { owner: "NoSafeSky", craftDefaultCount: 1 },
@@ -20,6 +20,7 @@ test("goal compiler maps valid goals to intents", () => {
   assert.equal(compiled.intents[0].item, "wooden_sword");
   assert.equal(compiled.intents[1].type, "attackMob");
   assert.equal(compiled.intents[1].mobType, "pig");
+  assert.equal(compiled.intents[1].count, 2);
 });
 
 test("goal compiler rejects unknown craft items", () => {

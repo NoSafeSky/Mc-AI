@@ -53,8 +53,10 @@ async function llmChatReply(message, cfg, history = [], opts = {}) {
   const provider = (cfg.llmProvider || "ollama").toLowerCase();
   const model = cfg.llmModel || "gemini-3.0-flash";
   const maxTokens = Number.isFinite(opts.maxTokens) ? opts.maxTokens : (cfg.chatMaxTokens || 80);
+  const personalityModifier = String(opts.personalityModifier || "").trim();
 
-  const system = `You are a friendly Minecraft bot assistant. Reply in 1 short sentence. No emojis. Avoid commands. Use recent chat context if provided.`;
+  const baseSystem = `You are a friendly Minecraft bot assistant. Reply in 1 short sentence. No emojis. Avoid commands. Use recent chat context if provided.`;
+  const system = personalityModifier ? `${personalityModifier}\n${baseSystem}` : baseSystem;
   const historyText = history.length
     ? `Recent chat:\n${history.map((h) => `${h.role}: ${h.text}`).join("\n")}`
     : "";

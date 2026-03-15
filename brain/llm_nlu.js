@@ -64,7 +64,8 @@ function validateIntent(obj, owner, version = "1.21.1") {
     case "attackMob": {
       const mobType = typeof obj.mobType === "string" ? obj.mobType.toLowerCase().trim() : "";
       if (!mobType) return noneIntent("missing_mob");
-      return { type: "attackMob", mobType, source: "llm", confidence };
+      const count = Number.isFinite(obj.count) ? Math.max(1, Math.min(64, Number(obj.count))) : 1;
+      return { type: "attackMob", mobType, count, source: "llm", confidence };
     }
     case "craftItem": {
       const item = typeof obj.item === "string" ? obj.item.toLowerCase().trim() : "";
@@ -147,7 +148,7 @@ Allowed intents (choose one):
 {"type":"craftBasic","confidence":0.0-1.0}
 {"type":"craftItem","item":"wooden_sword","count":1,"confidence":0.0-1.0}
 {"type":"explore","radius":200,"seconds":60,"confidence":0.0-1.0}
-{"type":"attackMob","mobType":"pig","confidence":0.0-1.0}
+{"type":"attackMob","mobType":"pig","count":1,"confidence":0.0-1.0}
 {"type":"attackHostile","confidence":0.0-1.0}
 {"type":"huntFood","confidence":0.0-1.0}
 {"type":"freeform","message":"<request>","confidence":0.0-1.0}
@@ -160,7 +161,7 @@ Rules:
 - "stop all" / "stop everything" / "!stopall" => stopall.
 - "resume" => resume.
 - Mentions of creepy/stalk => setCreepy true or stalk depending on wording.
-- Use attackMob for explicit mob targets like "kill a pig".
+- Use attackMob for explicit mob targets like "kill a pig" and set count if requested.
 - Use attackHostile for "kill hostile mobs".
 - Use huntFood for food hunting requests.
 - For requests like "seek a village", "go explore", "craft tools" choose supported direct intent if possible, else freeform.

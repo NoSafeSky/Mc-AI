@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { Vec3 } = require("vec3");
 
-const { shouldRetreat, executeCombatTurn } = require("../brain/combat_controller");
+const { shouldRetreat, executeCombatTurn, __test } = require("../brain/combat_controller");
 
 test("shouldRetreat triggers on low health and food", () => {
   const hp = shouldRetreat({ health: 6, food: 20 }, { combatRetreatHealth: 8, combatRetreatFood: 8 });
@@ -55,4 +55,58 @@ test("executeCombatTurn attacks reachable target", async () => {
   );
   assert.equal(out.ok, true);
   assert.equal(attacked > 0, true);
+});
+
+test("pickBestCombatWeapon prefers strongest melee option in inventory", () => {
+  const bot = {
+    inventory: {
+      items: () => ([
+        { name: "wooden_sword", count: 1 },
+        { name: "iron_sword", count: 1 },
+        { name: "diamond_axe", count: 1 }
+      ])
+    }
+  };
+  const best = __test.pickBestCombatWeapon(bot);
+  assert.equal(best?.name, "diamond_axe");
+  assert.equal(__test.meleeWeaponScore("stone_sword") < __test.meleeWeaponScore("iron_sword"), true);
+});
+
+test("executeCombatTurn equips best weapon before attacking", async () => {
+  let attacked = 0;
+  let equipped = null;
+  const bot = {
+    health: 20,
+    food: 20,
+    heldItem: { name: "wooden_sword" },
+    inventory: {
+      items: () => ([
+        { name: "wooden_sword", count: 1 },
+        { name: "iron_axe", count: 1 }
+      ])
+    },
+    equip: async (item) => {
+      bot.heldItem = item;
+      equipped = item?.name || null;
+    },
+    entity: { position: new Vec3(0, 64, 0), yaw: 0, pitch: 0 },
+    attack: () => { attacked += 1; },
+    pathfinder: {
+      setGoal() {},
+      setMovements() {}
+    },
+    waitForTicks: async () => {}
+  };
+
+  const out = await executeCombatTurn(
+    bot,
+    { position: new Vec3(1, 64, 0), isValid: true },
+    { movementProfile: "human_cautious", combatUsePvpPlugin: false },
+    { isCancelled: () => false },
+    () => {}
+  );
+
+  assert.equal(out.ok, true);
+  assert.equal(attacked > 0, true);
+  assert.equal(equipped, "iron_axe");
 });

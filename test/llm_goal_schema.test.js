@@ -51,7 +51,7 @@ test("goal schema enforces max goals", () => {
 
 test("parse route text returns normalized action route", () => {
   const parsed = parseRouteText(
-    '{"kind":"action","confidence":0.88,"goals":[{"type":"attackMob","args":{"mobType":"Pig"}}]}',
+    '{"kind":"action","confidence":0.88,"goals":[{"type":"attackMob","args":{"mobType":"Pig","count":2}}]}',
     { owner: "NoSafeSky", maxGoals: 5 }
   );
 
@@ -59,6 +59,7 @@ test("parse route text returns normalized action route", () => {
   assert.equal(parsed.value.kind, "action");
   assert.equal(parsed.value.goals[0].type, "attackMob");
   assert.equal(parsed.value.goals[0].args.mobType, "pig");
+  assert.equal(parsed.value.goals[0].args.count, 2);
 });
 
 test("goal schema accepts mission and give item goals", () => {

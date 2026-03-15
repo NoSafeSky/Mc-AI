@@ -17,8 +17,10 @@ const { startAutonomy } = require("./brain/autonomy");
 const { isLivingNonPlayerEntity, getCanonicalEntityName } = require("./brain/entities");
 const { buildGoalPlan } = require("./brain/dependency_planner");
 const { routePromptWithLLM, getLastRouteFailure } = require("./brain/llm_router");
+const { createCognitiveCore, defaultCognitiveConfig } = require("./brain/cognitive/core");
 const { compileGoalSpecsToIntents } = require("./brain/goal_compiler");
 const { normalizeCraftItem, resolveDynamicItemName } = require("./brain/crafting_catalog");
+const { canonicalizeMob } = require("./brain/nlu");
 const {
   ensureMissionState,
   autoStartMatch,
@@ -152,13 +154,17 @@ const cfg = Object.assign(
     tacticalLlmEventOnly: true,
     movementProfile: "human_cautious",
     movementLookSmoothingDegPerTick: 12,
-    movementMicroPauseChance: 0.10,
+    movementDisableMicroPause: true,
+    movementMicroPauseChance: 0,
     movementMicroPauseMsMin: 90,
     movementMicroPauseMsMax: 260,
     movementStrafeJitterChance: 0.12,
     movementSprintDiscipline: true,
     movementAllowAdvancedParkour: false,
     combatUsePvpPlugin: true,
+    combatNoProgressTimeoutMs: 2500,
+    combatApproachTimeoutMs: 4000,
+    combatPvpBurstTicks: 4,
     combatRetreatHealth: 8,
     combatRetreatFood: 8,
     teamStashEnabled: true,
@@ -178,7 +184,18 @@ const cfg = Object.assign(
     smeltTransferRetryLimit: 10,
     smeltInputTransferRetryLimit: 6,
     smeltNoStateChangeMs: 40000,
-    goalAutonomy: false
+    goalAutonomy: false,
+    cognitiveEnabled: false,
+    cognitive: {
+      enabled: false,
+      ticks: { fastMs: 2000, mediumMs: 10000, slowMs: 60000 },
+      initiative: { enabled: true, cooldownMs: 90000, maxCommentsPer10Min: 5 },
+      mood: { enabled: true, decayToContentMs: 300000 },
+      memory: { episodicMax: 2000, semanticMax: 500, proceduralMax: 200, emotionalMax: 500 },
+      llmBudget: { monologueEnabled: false, monologueMaxPer5Min: 3, recallEnabled: false, recallMaxPerMin: 1, timeoutMs: 2000 },
+      trust: { enabled: true, start: 0.1, successDelta: 0.02, failDelta: -0.05 },
+      autonomyPolicy: { advisoryOnly: true }
+    }
   },
   JSON.parse(fs.readFileSync("./config.json", "utf8"))
 );
@@ -211,6 +228,46 @@ if (!Object.prototype.hasOwnProperty.call(cfg, "assistantProposalTimeoutSec")) {
 if (!Object.prototype.hasOwnProperty.call(cfg, "assistantRequireOwnerConfirm")) {
   cfg.assistantRequireOwnerConfirm = true;
 }
+const cognitiveDefaults = defaultCognitiveConfig(cfg);
+if (!Object.prototype.hasOwnProperty.call(cfg, "cognitiveEnabled")) {
+  cfg.cognitiveEnabled = cognitiveDefaults.cognitiveEnabled;
+}
+cfg.cognitive = {
+  ...cognitiveDefaults.cognitive,
+  ...(cfg.cognitive || {}),
+  ticks: {
+    ...cognitiveDefaults.cognitive.ticks,
+    ...(cfg.cognitive?.ticks || {})
+  },
+  initiative: {
+    ...cognitiveDefaults.cognitive.initiative,
+    ...(cfg.cognitive?.initiative || {})
+  },
+  mood: {
+    ...cognitiveDefaults.cognitive.mood,
+    ...(cfg.cognitive?.mood || {})
+  },
+  memory: {
+    ...cognitiveDefaults.cognitive.memory,
+    ...(cfg.cognitive?.memory || {})
+  },
+  llmBudget: {
+    ...cognitiveDefaults.cognitive.llmBudget,
+    ...(cfg.cognitive?.llmBudget || {})
+  },
+  trust: {
+    ...cognitiveDefaults.cognitive.trust,
+    ...(cfg.cognitive?.trust || {})
+  },
+  autonomyPolicy: {
+    ...cognitiveDefaults.cognitive.autonomyPolicy,
+    ...(cfg.cognitive?.autonomyPolicy || {})
+  }
+};
+if (!Object.prototype.hasOwnProperty.call(cfg.cognitive, "enabled")) {
+  cfg.cognitive.enabled = cfg.cognitiveEnabled === true;
+}
+cfg.cognitiveEnabled = cfg.cognitiveEnabled === true || cfg.cognitive.enabled === true;
 
 const memoryDir = path.join(__dirname, "memory");
 if (!fs.existsSync(memoryDir)) fs.mkdirSync(memoryDir, { recursive: true });
@@ -314,6 +371,7 @@ let queueDrainBusy = false;
 let idleFollowTimer = null;
 let idleFollowEngaged = false;
 let idleFollowPausedReason = null;
+let cognitive = null;
 
 function normalizeMessage(message) {
   // remove formatted prefixes like "<Name> "
@@ -365,6 +423,46 @@ function parseGiveItemPhrase(text, version = "1.21.1", defaultCount = 1) {
   };
 }
 
+const ATTACK_COUNT_WORDS = new Map([
+  ["a", 1],
+  ["an", 1],
+  ["one", 1],
+  ["two", 2],
+  ["three", 3],
+  ["four", 4],
+  ["five", 5],
+  ["six", 6],
+  ["seven", 7],
+  ["eight", 8],
+  ["nine", 9],
+  ["ten", 10],
+  ["eleven", 11],
+  ["twelve", 12]
+]);
+
+function parseAttackCountToken(raw) {
+  const token = String(raw || "").toLowerCase().trim();
+  if (!token) return 1;
+  const num = Number.parseInt(token, 10);
+  if (Number.isFinite(num) && num > 0) return Math.max(1, Math.min(64, num));
+  if (ATTACK_COUNT_WORDS.has(token)) return Math.max(1, Math.min(64, ATTACK_COUNT_WORDS.get(token)));
+  return 1;
+}
+
+function parseAttackCountPhrase(text, bot) {
+  const t = String(text || "")
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const m = /\b(kill|attack|hunt|slay)\s+(?:(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+)?(?:the\s+)?([a-z_]+(?:\s+[a-z_]+)?)\b/.exec(t);
+  if (!m) return null;
+  const mobType = canonicalizeMob(m[3], bot);
+  if (!mobType) return null;
+  const count = parseAttackCountToken(m[2] || "1");
+  return { mobType, count };
+}
+
 function looksActionable(text) {
   const t = String(text || "").toLowerCase();
   return /\b(kill|attack|hunt|slay|follow|come|stop|resume|harvest|chop|craft|explore|seek|find|collect|gather|build|mine|bring|run|mission|stash|give|regroup|queue|drop|toss|throw)\b/.test(t);
@@ -382,7 +480,7 @@ function isStopIntent(intent) {
 
 function intentSummary(intent) {
   const source = intent.source || "rules";
-  if (intent.type === "attackMob" && intent.mobType) return `intent: attackMob ${intent.mobType} (${source})`;
+  if (intent.type === "attackMob" && intent.mobType) return `intent: attackMob ${intent.mobType} x${intent.count || 1} (${source})`;
   if (intent.type === "craftItem" && intent.item) {
     const needs = Array.isArray(intent.previewNeeds) && intent.previewNeeds.length
       ? ` | needs: ${intent.previewNeeds.slice(0, 4).map((n) => n.item ? `${n.item} x${n.count}` : `station:${n.station}`).join(", ")}`
@@ -403,7 +501,7 @@ function summarizeGoal(goal) {
   const type = String(goal.type || "unknown");
   const args = goal.args && typeof goal.args === "object" ? goal.args : {};
   if (type === "craftItem") return `craftItem:${args.item || "?"}x${args.count || 1}`;
-  if (type === "attackMob") return `attackMob:${args.mobType || "?"}`;
+  if (type === "attackMob") return `attackMob:${args.mobType || "?"}x${args.count || 1}`;
   if (type === "giveItem") return `giveItem:${args.item || "?"}x${args.count || 1}`;
   if (type === "dropAllItems") return "dropAllItems";
   if (
@@ -422,7 +520,7 @@ function summarizeGoal(goal) {
 function summarizeIntent(intent) {
   if (!intent || typeof intent !== "object") return "unknown";
   if (intent.type === "craftItem") return `craftItem:${intent.item || "?"}x${intent.count || 1}`;
-  if (intent.type === "attackMob") return `attackMob:${intent.mobType || "?"}`;
+  if (intent.type === "attackMob") return `attackMob:${intent.mobType || "?"}x${intent.count || 1}`;
   if (intent.type === "giveItem") return `giveItem:${intent.item || "?"}x${intent.count || 1}`;
   if (intent.type === "dropAllItems") return "dropAllItems";
   if (
@@ -489,13 +587,17 @@ function mapRawEntityType(botRef, rawType) {
   return map.get(rawType) || null;
 }
 
-const bot = mineflayer.createBot({
+const botOptions = {
   host: cfg.host,
-  port: cfg.port,
   username: cfg.username,
   version: cfg.version,
   viewDistance: cfg.viewDistance || 10
-});
+};
+if (Number.isFinite(Number(cfg.port))) {
+  botOptions.port = Number(cfg.port);
+}
+
+const bot = mineflayer.createBot(botOptions);
 
 function patchDeprecatedPhysicsEventAlias(botRef) {
   const mapEvent = (eventName) => (eventName === "physicTick" ? "physicsTick" : eventName);
@@ -536,6 +638,28 @@ bot.once("spawn", () => {
   bot.__runtimeCfg = cfg;
   bot.chat("...");
   log({ type: "spawn" });
+  cognitive = createCognitiveCore(bot, cfg, {
+    owner: cfg.owner,
+    log,
+    isBusy: () => !!activeTask || !!pendingDecision || !!pendingMissionSuggestion,
+    sendAdvisory: (message, meta = {}) => {
+      const text = String(message || "").trim();
+      if (!text) return;
+      bot.chat(text);
+      log({
+        type: "cognitive_advisory_chat",
+        message: text,
+        rule: meta?.rule || null,
+        risk: meta?.risk || null
+      });
+    }
+  });
+  if (cfg.cognitiveEnabled === true || cfg.cognitive?.enabled === true) {
+    cognitive.start();
+    log({ type: "cognitive_enabled" });
+  } else {
+    log({ type: "cognitive_disabled" });
+  }
   ensureEntityTypeMap(bot);
   bot.addChatPattern(
     "simple",
@@ -1055,7 +1179,18 @@ async function executeIntentTask(intent, isOwner) {
   activeTask = runCtx;
 
   try {
-    const taskResult = await planAndRun(bot, intent, () => state, (s) => { state = s; saveState(state); }, log, cfg, runCtx);
+    const executeFn = () => planAndRun(
+      bot,
+      intent,
+      () => state,
+      (s) => { state = s; saveState(state); },
+      log,
+      cfg,
+      runCtx
+    );
+    const taskResult = cognitive?.wrapExecution
+      ? await cognitive.wrapExecution(intent, isOwner, executeFn, { taskId: runCtx.id })
+      : await executeFn();
     if (taskResult?.status === "fail" && taskResult?.code === "confirm_expand_search" && isOwner) {
       const item = String(taskResult?.meta?.item || intent.item || "resource");
       const fromRadius = Math.max(
@@ -1161,6 +1296,9 @@ async function handleChat(username, message, source = "chat") {
   const lower = clean.toLowerCase().trim();
 
   const isOwner = username === cfg.owner;
+  try {
+    cognitive?.onChat?.(username, clean, isOwner);
+  } catch {}
   const prefix = cfg.commandPrefix || "bot";
   const hasPrefix = hasCommandPrefix(lower, prefix);
   const stripped = stripCommandPrefix(clean, prefix);
@@ -1285,11 +1423,13 @@ async function handleChat(username, message, source = "chat") {
 
   if (isOwner && lower.includes("!llm test")) {
     const mem = chatMemory.get(username) || [];
+    const routeCtx = cognitive?.getRouteContext?.() || {};
     const route = await routePromptWithLLM("say hello", cfg, state, {
       isOwner: true,
       owner: cfg.owner,
       username,
-      history: mem
+      history: mem,
+      personalityModifier: routeCtx.personalityModifier || ""
     });
     if (route.kind === "chat" && route.reply) {
       bot.chat(route.reply);
@@ -1536,6 +1676,7 @@ async function handleChat(username, message, source = "chat") {
       resumed: true
     });
   } else if (commandText && ((isOwner && cfg.llmRouteAllOwnerPrompts !== false) || (!isOwner && cfg.llmRouteNonOwnerChat !== false))) {
+    const routeCtx = cognitive?.getRouteContext?.() || {};
     log({
       type: "llm_route_start",
       from: username,
@@ -1546,7 +1687,8 @@ async function handleChat(username, message, source = "chat") {
       isOwner,
       owner: cfg.owner,
       username,
-      history
+      history,
+      personalityModifier: routeCtx.personalityModifier || ""
     });
     const routeFailure = getLastRouteFailure();
     if (routeFailure?.reason) {
@@ -1660,6 +1802,9 @@ async function handleChat(username, message, source = "chat") {
     const giveRequest = isOwner
       ? parseGiveItemPhrase(ownerCommandText || clean, bot.version || cfg.version || "1.21.1", cfg.craftDefaultCount || 1)
       : null;
+    const attackRequest = isOwner
+      ? parseAttackCountPhrase(ownerCommandText || clean, bot)
+      : null;
 
     if (isOwner && giveRequest) {
       if (!giveRequest.item) {
@@ -1694,6 +1839,29 @@ async function handleChat(username, message, source = "chat") {
           item: giveRequest.item,
           count: giveRequest.count || intent.count || 1
         };
+      }
+    }
+
+    if (
+      isOwner &&
+      attackRequest &&
+      intent.type === "attackMob" &&
+      String(intent.mobType || "") === String(attackRequest.mobType || "")
+    ) {
+      const nextCount = Math.max(1, Math.min(64, Number(attackRequest.count || 1)));
+      if (nextCount !== Number(intent.count || 1)) {
+        const before = summarizeIntent(intent);
+        intent = {
+          ...intent,
+          count: nextCount
+        };
+        log({
+          type: "intent_rewrite",
+          from: username,
+          reason: "attack_count_override",
+          fromIntent: before,
+          toIntent: summarizeIntent(intent)
+        });
       }
     }
 
@@ -1854,8 +2022,16 @@ bot.on("whisper", (username, message) => {
 
 bot.on("kicked", (reason) => console.log("KICKED:", reason));
 bot.on("error", (err) => console.log("ERROR:", err));
+bot.on("end", () => {
+  try {
+    cognitive?.stop?.();
+  } catch {}
+});
 
 bot.on("entitySpawn", (entity) => {
+  try {
+    cognitive?.onEntityEvent?.("entitySpawn", entity);
+  } catch {}
   if (!cfg.logMobSpawns) return;
   if (isLivingNonPlayerEntity(entity)) {
     log({
@@ -1870,11 +2046,17 @@ bot.on("entitySpawn", (entity) => {
 
 // Low-level packet logging to confirm if entity packets are arriving
 bot._client.on("entity_destroy", (packet) => {
+  try {
+    cognitive?.onEntityEvent?.("packet_entity_destroy", packet);
+  } catch {}
   if (!cfg.logEntityPackets) return;
   log({ type: "packet_entity_destroy", ids: packet?.entityIds || [] });
 });
 
 bot._client.on("spawn_entity", (packet) => {
+  try {
+    cognitive?.onEntityEvent?.("packet_spawn_entity", packet);
+  } catch {}
   if (!cfg.logEntityPackets) return;
   try {
     const mapped = mapRawEntityType(bot, packet?.type);
@@ -1907,6 +2089,9 @@ bot._client.on("spawn_entity", (packet) => {
 });
 
 bot._client.on("spawn_entity_living", (packet) => {
+  try {
+    cognitive?.onEntityEvent?.("packet_spawn_entity_living", packet);
+  } catch {}
   if (!cfg.logEntityPackets) return;
   try {
     const mapped = mapRawEntityType(bot, packet?.type);

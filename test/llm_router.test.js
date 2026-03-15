@@ -93,3 +93,28 @@ test("non-owner prompt stays chat-only", async () => {
   assert.equal(route.kind, "chat");
   assert.match(route.reply, /only owner/i);
 });
+
+test("non-owner chat passes personality modifier to chat fn", async () => {
+  let seenModifier = null;
+  const route = await routePromptWithLLM(
+    "hello",
+    {
+      owner: "NoSafeSky",
+      llmRouteNonOwnerChat: true
+    },
+    {},
+    {
+      isOwner: false,
+      owner: "NoSafeSky",
+      history: [],
+      personalityModifier: "Tone: concise and cautious.",
+      chatFn: async (_message, _cfg, _history, opts) => {
+        seenModifier = opts?.personalityModifier || null;
+        return "hi";
+      }
+    }
+  );
+
+  assert.equal(route.kind, "chat");
+  assert.equal(seenModifier, "Tone: concise and cautious.");
+});

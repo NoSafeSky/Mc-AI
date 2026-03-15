@@ -60,6 +60,19 @@ Assistant-first Minecraft bot for 1.21.1. The owner is the only action authority
 - `gatherDropRecoveryRetries=2`
 - `gatherDropRecoverMoveTimeoutMs=2500`
 
+## Cognitive Layer (Optional)
+- `cognitiveEnabled=false` by default.
+- New modules live under `brain/cognitive/`.
+- Cognitive layer is wrapper-only:
+  - no direct action execution
+  - no owner-confirm bypass
+  - no autonomy loop replacement
+- It can:
+  - observe world/social state on deterministic ticks
+  - persist bounded cognitive memory in `memory/cognitive/`
+  - adjust chat personality tone via `personalityModifier`
+  - emit advisory suggestions with cooldown/rate limits
+
 ## Deterministic Gather / Smelt Notes
 - Log gathering rejects unsafe stand positions and avoids same-tree reselection loops.
 - Existing stations within 32 blocks are reused before placing new ones.
